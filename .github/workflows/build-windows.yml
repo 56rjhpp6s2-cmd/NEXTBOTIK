@@ -42,16 +42,11 @@ jobs:
           godot --headless --path . --export-release "Windows Desktop" build/BELOW_ZERO.exe
           test -s build/BELOW_ZERO.exe
 
-      - name: Package Windows game
-        run: |
-          cd build
-          zip -9 BELOW_ZERO_Windows_Latest.zip BELOW_ZERO.exe
-
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: BELOW_ZERO-Windows
-          path: build/BELOW_ZERO_Windows_Latest.zip
+          path: build/BELOW_ZERO.exe
           if-no-files-found: error
           retention-days: 30
 
@@ -68,10 +63,11 @@ jobs:
           else
             gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$SHA" >/dev/null
           fi
-          notes="Automatically built from main at commit ${SHA:0:12}. Download the Windows ZIP, extract, and launch BELOW_ZERO.exe. This is a development build, not a stable release."
+          notes="Automatically built from main at commit ${SHA:0:12}. Download BELOW_ZERO.exe and run it on Windows. This is a development build, not a stable release."
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" build/BELOW_ZERO_Windows_Latest.zip --clobber
+            gh release upload "$tag" build/BELOW_ZERO.exe --clobber
+            gh release delete-asset "$tag" BELOW_ZERO_Windows_Latest.zip --yes 2>/dev/null || true
             gh release edit "$tag" --title "BELOW / ZERO — latest development build" --notes "$notes" --prerelease
           else
-            gh release create "$tag" build/BELOW_ZERO_Windows_Latest.zip --title "BELOW / ZERO — latest development build" --notes "$notes" --prerelease --verify-tag
+            gh release create "$tag" build/BELOW_ZERO.exe --title "BELOW / ZERO — latest development build" --notes "$notes" --prerelease --verify-tag
           fi
