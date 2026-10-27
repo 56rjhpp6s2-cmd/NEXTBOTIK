@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/procedural/procedural_room.gd" id="1"]
+
+[node name="DeadEndRoom" type="Node3D"]
+script = ExtResource("1")
+room_type = "dead_end"
+display_name = "DEAD END / 00"
+dimensions = Vector2i(2, 2)
+tile_cells = Array[Vector2i]([Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)])
+doorway_cells = Array[Vector3i]([Vector3i(0, 0, 0)])
+spawn_marker_cells = Array[Vector2i]([Vector2i(1, 1)])
+light_density = 0.18
+selection_weight = 0.55
+prop_style = "dead_end"

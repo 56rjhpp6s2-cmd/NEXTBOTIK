@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ProceduralGenerationConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/procedural/procedural_config.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+level_four_rooms = 15
+rooms_per_level = 5
+maximum_rooms = 55
+late_level_room_step = 3
+generation_retries = 12
+placement_attempts = 42
+minimum_exit_graph_distance = 5
+rare_room_chance = 0.09
+nextbot_speed_cap_multiplier = 2.0
+maximum_nextbots = 8
+minimum_lighting = 0.1

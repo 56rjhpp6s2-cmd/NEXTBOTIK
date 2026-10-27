@@ -1,0 +1,15 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/procedural/procedural_room.gd" id="1"]
+
+[node name="MaintenanceTunnel" type="Node3D"]
+script = ExtResource("1")
+room_type = "maintenance_tunnel"
+display_name = "MAINTENANCE TUNNEL"
+dimensions = Vector2i(1, 4)
+tile_cells = Array[Vector2i]([Vector2i(0, 0), Vector2i(0, 1), Vector2i(0, 2), Vector2i(0, 3)])
+doorway_cells = Array[Vector3i]([Vector3i(0, 0, 0), Vector3i(0, 3, 2)])
+spawn_marker_cells = Array[Vector2i]([Vector2i(0, 2)])
+light_density = 0.26
+selection_weight = 0.9
+prop_style = "maintenance"
