@@ -1,7 +1,7 @@
 class_name NextbotEnemy
 extends CharacterBody3D
-## LOS and hearing feed a five-state pursuit model; NavigationAgent handles routes.
-enum State { IDLE, WANDER, SEARCH, CHASE, ATTACK, DEAD }
+## Sight and hearing feed an explicit pursuit state machine; NavigationAgent handles routes.
+enum State { IDLE, WANDER, INVESTIGATE, SEARCH, CHASE, ATTACK, STUNNED, DEAD }
 @export var speed: float = 11.4
 @export var acceleration: float = 38.0
 @export var detection_range: float = 32.0
@@ -11,8 +11,23 @@ enum State { IDLE, WANDER, SEARCH, CHASE, ATTACK, DEAD }
 @export var repath_interval: float = 0.18
 @export var search_duration_scale: float = 1.0
 @export var chase_speed_cap: float = 22.0
+@export var attack_damage: float = 100.0
 var combat
 var face_variant: int = 0
+var custom_face: Texture2D
+var face_scale: float = 1.0
+var speed_multiplier: float = 1.0
+var event_speed_multiplier: float = 1.0
+var is_boss: bool = false
+var event_spawned: bool = false
+var event_tag: String = ""
+var angry_observation: bool = false
+var stun_remaining: float = 0.0
+var boss_minions_summoned: bool = false
+var face_base_height: float = 1.45
+var boss_ability_timer: float = 5.0
+var boss_telegraph: float = 0.0
+var boss_dash_remaining: float = 0.0
 var network_replica: bool = false
 var network_target: int = 1
 var state: State = State.IDLE
@@ -45,25 +60,28 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(48.0)
 	var collider = CollisionShape3D.new()
 	var shape = CapsuleShape3D.new()
-	shape.radius = 0.42
-	shape.height = 1.75
+	var body_scale = clampf(face_scale, 0.5, 2.2)
+	shape.radius = 0.42 * body_scale
+	shape.height = 1.75 * body_scale
 	collider.shape = shape
-	collider.position.y = 0.875
+	collider.position.y = shape.height * 0.5
 	add_child(collider)
 	face = Sprite3D.new()
-	face.texture = session.face_for_variant(face_variant)
+	face.texture = custom_face if custom_face != null else session.face_for_variant(face_variant)
 	face.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	face.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	face.pixel_size = 2.7 / float(face.texture.get_height())
-	face.position.y = 1.45
+	face_base_height = shape.height * 0.83
+	face.position.y = face_base_height
 	face.shaded = false
 	face.double_sided = true
+	face.scale = Vector3.ONE * face_scale
 	add_child(face)
 	agent = NavigationAgent3D.new()
 	agent.path_desired_distance = 0.5
 	agent.target_desired_distance = 0.6
-	agent.radius = 0.5
-	agent.height = 1.75
+	agent.radius = 0.5 * body_scale
+	agent.height = shape.height
 	# RVO must allow the full late-run chase speed; otherwise faster presets are capped.
 	agent.max_speed = speed * 1.32 + 1.0
 	agent.path_search_max_polygons = world.navigation.polygon_count + 1
@@ -108,6 +126,15 @@ func _physics_process(delta: float) -> void:
 			return
 		_change_state(State.SEARCH)
 	state_time += delta
+	if state == State.STUNNED:
+		stun_remaining = maxf(0.0, stun_remaining - delta)
+		desired = desired.move_toward(Vector3.ZERO, delta * acceleration * 2.0)
+		agent.velocity = desired
+		face.modulate = Color("8dcfff")
+		if stun_remaining <= 0.0:
+			face.modulate = Color.WHITE
+			_change_state(State.CHASE if is_instance_valid(player) and session.actor_alive(player) else State.WANDER)
+		return
 	last_seen += delta
 	sense_time -= delta
 	repath_time -= delta
@@ -121,6 +148,9 @@ func _physics_process(delta: float) -> void:
 		State.WANDER:
 			if agent.is_navigation_finished() or state_time > 16.0:
 				_change_state(State.IDLE)
+		State.INVESTIGATE:
+			if agent.is_navigation_finished() or state_time > 3.0 * search_duration_scale:
+				_change_state(State.SEARCH)
 		State.CHASE:
 			if repath_time <= 0.0:
 				repath_time = repath_interval
@@ -141,10 +171,12 @@ func _physics_process(delta: float) -> void:
 					_set_target(NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, search_target))
 		State.ATTACK:
 			return
+		State.STUNNED:
+			return
 		State.DEAD:
 			return
 	var distance = global_position.distance_to(player.global_position)
-	if distance < 1.25 and absf(global_position.y - player.global_position.y) < 1.4 and not player.hidden and world.refuge_remaining(player.global_position) <= 0.0 and _line_of_sight():
+	if distance < 1.25 and absf(global_position.y - player.global_position.y) < 1.4 and not player.hidden and world.refuge_remaining(player.global_position) <= 0.0 and _line_of_sight() and session.game_modes.attacks_enabled():
 		_change_state(State.ATTACK)
 		session.catch_player(player, self)
 		return
@@ -154,7 +186,32 @@ func _physics_process(delta: float) -> void:
 		direction = (next - global_position)
 		direction.y = 0.0
 		direction = direction.normalized()
-	var run_speed = speed * (1.0 + minf(session.survival_time / 360.0, 0.32))
+	var boss_phase_multiplier = 1.0
+	if is_boss and is_instance_valid(combat.health):
+		var health_ratio = combat.health.current_health / combat.health.max_health
+		boss_phase_multiplier = 1.45 if health_ratio < 0.2 else (1.25 if health_ratio < 0.5 else 1.0)
+		boss_ability_timer -= delta
+		if boss_telegraph > 0.0:
+			boss_telegraph = maxf(0.0, boss_telegraph - delta)
+			boss_phase_multiplier *= 0.22
+			face.modulate = Color("ff493d")
+			if boss_telegraph <= 0.0:
+				boss_dash_remaining = 0.8
+				face.modulate = Color.WHITE
+		elif boss_dash_remaining > 0.0:
+			boss_dash_remaining = maxf(0.0, boss_dash_remaining - delta)
+			boss_phase_multiplier *= 1.45
+		elif health_ratio < 0.5 and boss_ability_timer <= 0.0:
+			boss_telegraph = 0.9
+			boss_ability_timer = 7.0
+			session.ui.toast("BOSS CHARGE INCOMING\nBREAK LINE OF SIGHT", 1.2)
+		if health_ratio < 0.2 and not boss_minions_summoned and session.is_authority():
+			boss_minions_summoned = true
+			session.spawn_boss_minions(self)
+	var observation_multiplier = 1.0
+	if angry_observation:
+		observation_multiplier = 0.42 if _observed_by_any_player() else 1.32
+	var run_speed = speed * speed_multiplier * event_speed_multiplier * boss_phase_multiplier * observation_multiplier * (1.0 + minf(session.survival_time / 360.0, 0.32))
 	run_speed = minf(run_speed, chase_speed_cap)
 	if state != State.CHASE:
 		run_speed *= 0.68 if state == State.SEARCH else 0.43
@@ -174,7 +231,7 @@ func _physics_process(delta: float) -> void:
 		_set_target(NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, escape))
 		stuck_time = 0.0
 	last_position = global_position
-	face.position.y = 1.45 + sin(state_time * 6.0) * 0.055
+	face.position.y = face_base_height + sin(state_time * 6.0) * 0.055
 	audio.pitch_scale = 0.85 + minf(0.35, 10.0 / maxf(1.0, distance) * 0.15)
 	debug_label.visible = session.debug_ai
 	debug_label.text = "%s / %.1fm\nPATH %d / STUCK %.1f" % [State.keys()[state], distance, agent.get_current_navigation_path().size(), stuck_time]
@@ -226,7 +283,29 @@ func hear(at: Vector3, loudness: float, source: PlayerController = null) -> void
 		if is_instance_valid(source):
 			player = source
 		last_known = at
-		_change_state(State.SEARCH)
+		_change_state(State.INVESTIGATE)
+
+func apply_stun(seconds: float) -> void:
+	if combat.dead or seconds <= 0.0:
+		return
+	stun_remaining = maxf(stun_remaining, seconds)
+	_change_state(State.STUNNED)
+
+func _observed_by_any_player() -> bool:
+	for candidate in session.target_players():
+		if not session.actor_alive(candidate):
+			continue
+		var eye = candidate.view.camera.global_position
+		var offset = global_position + Vector3.UP * 1.2 - eye
+		if offset.length_squared() < 0.01:
+			return true
+		var forward = -candidate.view.camera.global_basis.z
+		if forward.dot(offset.normalized()) < 0.78:
+			continue
+		var ray = PhysicsRayQueryParameters3D.create(eye, global_position + Vector3.UP * 1.2, 1)
+		if get_world_3d().direct_space_state.intersect_ray(ray).is_empty():
+			return true
+	return false
 
 func _set_target(at: Vector3) -> void:
 	target = at

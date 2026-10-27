@@ -31,7 +31,7 @@ func _ready() -> void:
 func _build_hurtbox() -> void:
 	# A thin, camera-aligned rectangle covers the visible face above the AI capsule.
 	hurtbox = Area3D.new()
-	hurtbox.position.y = 1.45
+	hurtbox.position.y = bot.face_base_height
 	hurtbox.collision_layer = 4
 	hurtbox.collision_mask = 0
 	hurtbox.monitoring = false
@@ -45,7 +45,7 @@ func _build_hurtbox() -> void:
 		shape = cylinder
 	else:
 		var rectangle = BoxShape3D.new()
-		rectangle.size = Vector3(2.7 * bot.face.texture.get_width() / bot.face.texture.get_height(), 2.7, 0.12)
+		rectangle.size = Vector3(2.7 * bot.face.texture.get_width() / bot.face.texture.get_height(), 2.7, 0.12) * bot.face_scale
 		shape = rectangle
 	collision.shape = shape
 	hurtbox.add_child(collision)
@@ -53,7 +53,8 @@ func _build_hurtbox() -> void:
 
 func _build_bar() -> void:
 	bar_root = Node3D.new()
-	bar_root.position.y = 3.02
+	bar_root.position.y = bot.face_base_height + 1.57 * bot.face_scale
+	bar_root.scale = Vector3.ONE * clampf(bot.face_scale, 1.0, 1.8)
 	add_child(bar_root)
 	var background = MeshInstance3D.new()
 	var background_mesh = QuadMesh.new()

@@ -52,6 +52,16 @@ func build(tiles: Dictionary, world) -> void:
 	navigation_mesh = mesh
 	polygon_count = polygons.size()
 	NavigationServer3D.map_set_edge_connection_margin(get_world_3d().navigation_map, 0.15)
+	# Keep the synchronized flag honest for callers that never await
+	# wait_ready() (the run coordinator's standard spawner, Mayhem waves
+	# and Sandbox auto-spawn all gate on this flag). Started as a background
+	# coroutine so build() itself stays synchronous and cheap; explicit
+	# awaiters of wait_ready() still short-circuit once it flips true.
+	_ensure_synchronized()
+
+func _ensure_synchronized() -> void:
+	if not synchronized:
+		wait_ready()
 
 func path_between(origin: Vector3, destination: Vector3) -> PackedVector3Array:
 	var query = NavigationPathQueryParameters3D.new()
@@ -70,13 +80,21 @@ func wait_ready() -> bool:
 	# Map iterations build on a worker thread. Two frames need not be enough.
 	if navigation_mesh == null or navigation_mesh.vertices.is_empty():
 		return false
+	if synchronized:
+		return true
 	var frames: int = 0
 	var reference = navigation_mesh.vertices[0]
-	var map = get_world_3d().navigation_map
 	while frames < 600:
+		# A world can be removed/freed mid-poll when the player returns to the
+		# menu or transitions between levels; bail out cleanly instead of
+		# touching a freed SceneTree/World3D.
+		if not is_inside_tree():
+			return false
+		var tree = get_tree()
+		var map = get_world_3d().navigation_map
 		if NavigationServer3D.map_get_iteration_id(map) > 0 and NavigationServer3D.map_get_closest_point_owner(map, reference) == get_rid():
 			synchronized = true
 			return true
 		frames += 1
-		await get_tree().physics_frame
+		await tree.physics_frame
 	return false

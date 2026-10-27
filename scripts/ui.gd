@@ -2,6 +2,9 @@ class_name GameInterface
 extends CanvasLayer
 signal action_requested(action: String)
 signal map_selected(index: int)
+signal mode_selected(index: int)
+signal upgrade_selected(index: int)
+signal sandbox_action(action: String, value)
 const INK = Color("dce6df")
 const MUTED = Color("8a9d9f")
 const ACCENT = Color("93decc")
@@ -41,6 +44,15 @@ var level_label: Label
 var transition_screen: Control
 var transition_black: ColorRect
 var transition_label: Label
+var mode_choice: OptionButton
+var mode_description: Label
+var statistics_screen: Control
+var statistics_body: Label
+var upgrade_screen: Control
+var upgrade_buttons: Array[Button] = []
+var sandbox_screen: Control
+var sandbox_controls: Dictionary = {}
+var boss_label: Label
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -64,6 +76,9 @@ func _ready() -> void:
 	_build_result()
 	_build_jumpscare()
 	_build_transition()
+	_build_statistics()
+	_build_upgrades()
+	_build_sandbox()
 	show_screen("menu")
 
 func _theme() -> void:
@@ -144,6 +159,13 @@ func _build_menu() -> void:
 	_at(_label(menu, "/ ZERO", 112, ACCENT), Vector2(82, 245))
 	_at(_label(menu, "THERE IS NO QUIET WAY OUT.", 21, MUTED), Vector2(92, 390))
 	var buttons = _vbox(menu, Vector2(92, 430), 440)
+	mode_choice = OptionButton.new()
+	mode_choice.custom_minimum_size = Vector2(440, 58)
+	for title in ["MODE: ARCADE", "MODE: ENDLESS", "MODE: PNG MAYHEM", "MODE: SANDBOX"]:
+		mode_choice.add_item(title)
+	mode_choice.select(Settings.selected_game_mode)
+	mode_choice.item_selected.connect(_on_mode_selected)
+	buttons.add_child(mode_choice)
 	map_choice = OptionButton.new()
 	map_choice.custom_minimum_size = Vector2(440, 58)
 	map_choice.add_item("КАРТА: ПОДЗЕМНЫЙ КОМПЛЕКС")
@@ -155,8 +177,18 @@ func _build_menu() -> void:
 	_button(buttons, "СЕТЬ / RADMIN VPN", "network")
 	_button(buttons, "SETTINGS", "settings")
 	_button(buttons, "QUIT", "quit")
+	buttons.add_theme_constant_override("separation", 8)
+	for control in buttons.get_children():
+		control.custom_minimum_size.y = 48
+	var library_buttons = _vbox(menu, Vector2(545, 488), 400, 12)
+	_button(library_buttons, "NEXTBOT EDITOR / SANDBOX", "nextbot_editor")
+	_button(library_buttons, "PNG PROJECTILE LIBRARY", "png_library_menu")
+	_button(library_buttons, "STATISTICS", "statistics")
+	mode_description = _label(menu, "", 18, MUTED)
+	_at(mode_description, Vector2(545, 700), Vector2(430, 110))
+	mode_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	menu_best = _label(menu, "", 18, MUTED)
-	_at(menu_best, Vector2(94, 788))
+	_at(menu_best, Vector2(94, 805))
 	var info = _vbox(menu, Vector2(1080, 500), 420, 14)
 	_label(info, "YOUR ASSIGNMENT", 18, ACCENT)
 	mission_label = _label(info, "", 24)
@@ -167,6 +199,16 @@ func _build_menu() -> void:
 func _on_map_selected(index: int) -> void:
 	Sound.one_shot("click", -13.0)
 	map_selected.emit(index)
+
+func _on_mode_selected(index: int) -> void:
+	Sound.one_shot("click", -13.0)
+	mode_selected.emit(index)
+
+func set_mode_description(manager) -> void:
+	if not is_instance_valid(mode_choice):
+		return
+	mode_choice.select(int(manager.selected))
+	mode_description.text = manager.description()
 
 func set_map_description(world) -> void:
 	map_choice.select(Settings.level_index)
@@ -203,6 +245,9 @@ func _build_hud() -> void:
 	toast_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	debug_label = _label(hud, "", 16, Color.CYAN)
 	_at(debug_label, Vector2(48, 125))
+	boss_label = _label(hud, "", 23, Color("ef7568"))
+	_at(boss_label, Vector2(400, 150), Vector2(800, 44))
+	boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 func _build_pause() -> void:
 	pause_screen = _screen(0.88)
@@ -331,6 +376,90 @@ func _build_transition() -> void:
 	transition_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	transition_screen.visible = false
 
+func _build_statistics() -> void:
+	statistics_screen = _screen(0.97)
+	var v = _vbox(statistics_screen, Vector2(350, 105), 900, 18)
+	_label(v, "LOCAL STATISTICS", 46, ACCENT)
+	statistics_body = _label(v, "", 24)
+	statistics_body.custom_minimum_size = Vector2(900, 520)
+	_button(v, "RETURN TO MENU", "menu_screen")
+
+func _build_upgrades() -> void:
+	upgrade_screen = _screen(0.93)
+	_at(_label(upgrade_screen, "WAVE CLEARED", 54, ACCENT), Vector2(510, 135))
+	_at(_label(upgrade_screen, "Choose one reusable modifier", 22, MUTED), Vector2(570, 205))
+	var v = _vbox(upgrade_screen, Vector2(445, 285), 710, 18)
+	for index in range(3):
+		var button = Button.new()
+		button.text = "UPGRADE"
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.custom_minimum_size = Vector2(710, 105)
+		button.pressed.connect(_upgrade_pressed.bind(index))
+		v.add_child(button)
+		upgrade_buttons.append(button)
+
+func _upgrade_pressed(index: int) -> void:
+	upgrade_selected.emit(index)
+
+func _build_sandbox() -> void:
+	sandbox_screen = _screen(0.82)
+	_at(_label(sandbox_screen, "SANDBOX NEXTBOT LAB", 42, ACCENT), Vector2(160, 55))
+	_at(_label(sandbox_screen, "Changes apply live. Spawn uses the selected PNG face.", 19, MUTED), Vector2(165, 110))
+	var left = _vbox(sandbox_screen, Vector2(165, 165), 580, 12)
+	_sandbox_slider(left, "Speed", "speed", 0.0, 30.0, 0.1, 11.4)
+	_sandbox_slider(left, "Maximum HP", "health", 1.0, 10000.0, 1.0, 100.0)
+	_sandbox_slider(left, "Attack damage", "damage", 0.0, 200.0, 1.0, 100.0)
+	_sandbox_slider(left, "Aggression", "aggression", 0.05, 3.0, 0.05, 1.0)
+	_sandbox_slider(left, "Detection range", "detection", 0.0, 100.0, 1.0, 34.0)
+	_sandbox_slider(left, "Nextbot size", "size", 0.25, 3.0, 0.05, 1.0)
+	_sandbox_slider(left, "Spawn count", "count", 1.0, 12.0, 1.0, 1.0)
+	_sandbox_slider(left, "Auto-spawn interval", "auto_spawn_interval", 0.5, 20.0, 0.5, 4.0)
+	_sandbox_slider(left, "Auto-spawn limit", "auto_spawn_limit", 1.0, 32.0, 1.0, 12.0)
+	_sandbox_slider(left, "Lighting", "lighting", 0.05, 2.0, 0.05, 1.0)
+	var right = _vbox(sandbox_screen, Vector2(860, 170), 520, 12)
+	_sandbox_toggle(right, "AI enabled", "ai", true)
+	_sandbox_toggle(right, "Enemy attacks", "attacks", true)
+	_sandbox_toggle(right, "Player invincible", "invincible", true)
+	_sandbox_toggle(right, "AUTO SPAWN NEXTBOTS", "auto_spawn", false)
+	_button(right, "SPAWN SELECTED PNG NEXTBOT", "sandbox_spawn")
+	_button(right, "REMOVE ALL NEXTBOTS", "sandbox_remove")
+	_button(right, "TRIGGER RANDOM EVENT", "sandbox_event")
+	_button(right, "REGENERATE PROCEDURAL MAP", "sandbox_regenerate")
+	_button(right, "RESET SANDBOX", "sandbox_reset")
+	_button(right, "RETURN TO PLAY [F2]", "sandbox_close")
+
+func _sandbox_slider(parent: Node, title: String, key: String, minimum: float, maximum: float, step: float, initial: float) -> void:
+	var row = _row(parent, title)
+	row.get_child(0).custom_minimum_size.x = 220
+	var slider = HSlider.new()
+	slider.min_value = minimum
+	slider.max_value = maximum
+	slider.step = step
+	slider.value = initial
+	slider.custom_minimum_size.x = 250
+	row.add_child(slider)
+	var value_label = _label(row, "", 17, ACCENT)
+	value_label.custom_minimum_size.x = 90
+	slider.value_changed.connect(_sandbox_slider_changed.bind(key, step, value_label))
+	_sandbox_slider_changed(initial, key, step, value_label)
+	sandbox_controls[key] = slider
+
+func _sandbox_slider_changed(value: float, key: String, step: float, value_label: Label) -> void:
+	value_label.text = "%d" % roundi(value) if step >= 1.0 else "%.2f" % value
+	sandbox_action.emit(key, roundi(value) if key == "count" else value)
+
+func _sandbox_toggle(parent: Node, title: String, key: String, initial: bool) -> void:
+	var toggle = CheckButton.new()
+	toggle.text = title
+	toggle.button_pressed = initial
+	toggle.custom_minimum_size = Vector2(500, 46)
+	toggle.toggled.connect(_sandbox_toggle_changed.bind(key))
+	parent.add_child(toggle)
+	sandbox_controls[key] = toggle
+
+func _sandbox_toggle_changed(value: bool, key: String) -> void:
+	sandbox_action.emit(key, value)
+
 func show_screen(which: String) -> void:
 	menu.visible = which == "menu"
 	hud.visible = which == "game"
@@ -338,6 +467,9 @@ func show_screen(which: String) -> void:
 	settings_screen.visible = which == "settings"
 	result_screen.visible = which == "result"
 	jumpscare_screen.visible = which == "jumpscare"
+	statistics_screen.visible = which == "statistics"
+	upgrade_screen.visible = which == "upgrades"
+	sandbox_screen.visible = which == "sandbox"
 	if which == "menu":
 		menu_best.text = "%s  /  BEST SURVIVAL %s  /  DEEPEST LEVEL %02d" % [Settings.difficulty_name(), Settings.time_text(Settings.best_for_map(Settings.level_index, Settings.difficulty)), Settings.highest_level]
 		_focus_first(menu)
@@ -345,6 +477,12 @@ func show_screen(which: String) -> void:
 		_focus_first(pause_screen)
 	elif which == "result":
 		_focus_first(result_screen)
+	elif which == "statistics":
+		_focus_first(statistics_screen)
+	elif which == "upgrades":
+		_focus_first(upgrade_screen)
+	elif which == "sandbox":
+		_focus_first(sandbox_screen)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if which == "game" else Input.MOUSE_MODE_VISIBLE
 
 func _focus_first(node: Node) -> void:
@@ -377,16 +515,20 @@ func apply_settings() -> void:
 
 func update_hud(session) -> void:
 	var p = session.player
-	level_label.text = "LEVEL %02d" % session.current_level
-	timer_label.text = Settings.time_text(session.survival_time)
+	level_label.text = session.game_modes.mode_status()
+	timer_label.text = Settings.time_text(session.game_modes.timer_seconds())
 	zone_label.text = session.world.hud_location(p.global_position)
 	objective_label.text = "BREAKERS  %d / 3  →  %s" % [session.breakers, session.world.objective_destination if session.breakers == 3 else "RESTORE POWER"]
+	objective_label.text = session.game_modes.objective_text()
 	movement_label.text = "SLIDING" if p.sliding else ("SPRINTING" if p.sprinting else ("CROUCHED / QUIET" if p.crouching else ""))
 	speed_label.visible = Settings.show_speedometer
 	speed_label.text = "%.1f m/s" % Vector2(p.velocity.x, p.velocity.z).length()
 	battery_label.text = "LIGHT %s  /  %d%%" % ["ON" if p.view.flashlight_on else "OFF", ceili(p.view.battery)]
 	var refuge = session.world.refuge_remaining(p.global_position)
-	if p.hidden:
+	var event_warning = session.events.warning_text()
+	if not event_warning.is_empty():
+		warning_label.text = event_warning
+	elif p.hidden:
 		warning_label.text = "HOLD YOUR BREATH"
 	elif refuge > 0:
 		warning_label.text = "REFUGE POWER  /  %02d SEC" % ceili(refuge)
@@ -395,6 +537,10 @@ func update_hud(session) -> void:
 	else:
 		warning_label.text = "RUN. IT HAS SEEN YOU." if session.chased else ""
 	prompt_label.text = "[E] LEAVE LOCKER  /  %d SECONDS" % ceili(session.hide_remaining) if p.hidden else session.interaction_prompt
+	boss_label.text = ""
+	if is_instance_valid(session.game_modes.active_boss) and not session.game_modes.active_boss.combat.dead:
+		var boss_health = session.game_modes.active_boss.get_health_component()
+		boss_label.text = "BOSS  %d / %d HP" % [ceili(boss_health.current_health), ceili(boss_health.max_health)]
 	overlay.material.set_shader_parameter("danger", clampf(session.threat, 0, 1))
 	debug_label.visible = session.debug_ai
 	if session.debug_ai:
@@ -404,7 +550,7 @@ func update_hud(session) -> void:
 		var light_scale = session.world.lighting_multiplier if procedural else 1.0
 		var validation = session.world.generation_validation if procedural else "AUTHORED"
 		var nav_state = session.world.navigation_status if procedural else ("READY" if session.world.navigation.synchronized else "BUILDING")
-		debug_label.text = "F3 / AI DEBUG  |  F6 REGENERATE\nLEVEL %02d  |  SEED %s  |  ROOMS %d\nLIGHT %.2fx  |  BOT SPEED %.2fx\nNAV %s  |  VALIDATION %s\nFPS %d  |  BOTS %d  |  NAV POLYGONS %d\nPOSITION %s  |  THREAT %.2f" % [session.current_level, seed_text, room_count, light_scale, session.nextbot_speed_multiplier(), nav_state, validation, Engine.get_frames_per_second(), session.bots.size(), session.world.navigation.polygon_count, str(p.global_position.snapped(Vector3.ONE * 0.1)), session.threat]
+		debug_label.text = "F3 / AI DEBUG  |  F6 REGENERATE  |  F7 FORCE SPAWN\nLEVEL %02d  |  SEED %s  |  ROOMS %d\nLIGHT %.2fx  |  BOT SPEED %.2fx\nNAV %s  |  VALIDATION %s\nFPS %d  |  BOTS %d  |  NAV POLYGONS %d\nPOSITION %s  |  THREAT %.2f" % [session.current_level, seed_text, room_count, light_scale, session.nextbot_speed_multiplier(), nav_state, validation, Engine.get_frames_per_second(), session.bots.size(), session.world.navigation.polygon_count, str(p.global_position.snapped(Vector3.ONE * 0.1)), session.threat]
 
 func fade_to_black(message: String, duration: float = 0.65) -> void:
 	transition_screen.visible = true
@@ -442,6 +588,33 @@ func show_result(won: bool, seconds: float, best_time: float, new_record: bool, 
 	result_body.text += "\nPNG KILLS  %d" % kills
 	result_button.text = "ENTER AGAIN    →" if won else "RESPAWN    →"
 	show_screen("result")
+
+func show_arcade_result(result: Dictionary, leaderboard: Array[Dictionary]) -> void:
+	result_title.text = "ROUND SURVIVED"
+	result_title.add_theme_font_size_override("font_size", 58)
+	result_title.add_theme_color_override("font_color", ACCENT)
+	result_body.text = "ROUND %02d  /  SCORE %06d\nSURVIVED  %s\n\nSESSION LEADERBOARD" % [result.round, result.score, Settings.time_text(result.survival)]
+	for index in range(mini(5, leaderboard.size())):
+		result_body.text += "\n%d.  %06d  /  ROUND %02d" % [index + 1, leaderboard[index].score, leaderboard[index].round]
+	result_button.text = "NEXT MAP / ROUND    ->"
+	show_screen("result")
+
+func show_upgrades(upgrades: Array[String], definitions: Dictionary) -> void:
+	for index in range(upgrade_buttons.size()):
+		var key = upgrades[index]
+		upgrade_buttons[index].text = "%s\n%s" % [definitions[key].title, definitions[key].description]
+	show_screen("upgrades")
+
+func show_statistics(statistics) -> void:
+	var d: Dictionary = statistics.data
+	statistics_body.text = "TOTAL PLAYTIME             %s\nTOTAL DEATHS               %d\nNEXTBOT KILLS              %d\nBEST SURVIVAL              %s\nHIGHEST ENDLESS LEVEL      %02d\nHIGHEST ARCADE SCORE       %06d\nPNG PROJECTILES THROWN     %d\nSUCCESSFUL PNG HITS        %d\nBEST COMPLETED WAVE        %02d\nBOSSES DEFEATED            %d" % [Settings.time_text(d.total_playtime), d.total_deaths, d.total_nextbot_kills, Settings.time_text(d.best_survival_time), d.highest_endless_level, d.highest_arcade_score, d.total_png_projectiles_thrown, d.successful_projectile_hits, d.best_completed_wave, d.bosses_defeated]
+	show_screen("statistics")
+
+func toggle_sandbox_tools() -> void:
+	if sandbox_screen.visible:
+		show_screen("game")
+	else:
+		show_screen("sandbox")
 
 func play_jumpscare(texture: Texture2D) -> void:
 	scare_image.texture = texture

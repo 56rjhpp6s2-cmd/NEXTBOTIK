@@ -1,6 +1,6 @@
 # BELOW / ZERO
 
-A first-person Nextbots survival horror game for Windows, built in Godot 4.5+ with GDScript. Choose between an abandoned underground complex and a gm_construct-style outdoor arena. Restore three noisy breakers, reach the exit and descend through an unlimited sequence of increasingly hostile levels.
+A first-person Nextbots horror-action game for Windows, built in Godot 4.5+ with GDScript. Choose **Arcade**, **Endless**, **PNG Mayhem** or **Sandbox**, then enter an abandoned underground complex or a gm_construct-style outdoor arena. Endless retains the objective-driven descent and generates a new modular labyrinth from Level 4 onward. Sandbox includes manual spawning plus configurable automatic spawning, batch size, interval and active-enemy limit.
 
 You can fight back by throwing PNG images. Import your own transparent PNGs during a run, switch images with the mouse wheel, aim, and defeat enemies with five standard hits. Both maps retain their movement, chases, objectives, jumpscare and respawn systems.
 
@@ -47,6 +47,7 @@ The HUD displays the current level, and the deepest reached level is saved. F3 i
 | Space | Jump, including out of a slide; optional hold-to-bunny-hop in Settings |
 | A / D in the air | Air strafe to carry speed through turns |
 | F4 | Show or hide the speedometer |
+| F2 | Open or close live Sandbox controls while playing Sandbox |
 | E | Restore breaker, collect battery, enter/leave locker, use lift or descent gate |
 | F | Toggle flashlight |
 | Left mouse (hold or click) | Throw selected PNG |
@@ -96,6 +97,8 @@ Settings include sensitivity, brightness/minimum visibility, separate master/mus
 - `scripts/settings.gd`: persistence and Windows display configuration.
 - `scripts/combat/`: PNG image loading/import, projectile controller, swept projectile collisions, reusable health/damage, Nextbot reactions and combat HUD/library.
 - `scripts/network/`: ENet host/join, server authority, player avatars, interpolated world snapshots, custom PNG exchange and network menu.
+- `scripts/gameplay/`: four mode policies, reusable upgrades, local statistics and reversible random events.
+- `resources/gameplay_config.tres`: central Arcade, Mayhem, boss and event tuning.
 
 Map geometry and its navigation surfaces are created deterministically from the same tile layout. Stair ramps share edge vertices with the floors. Bot clearance is inset at walls, physical props sit outside navigation clearance, and low player-only shortcuts are excluded from the bot mesh. Static boxes are batched by material in 24-meter chunks to reduce draw calls while preserving frustum culling. Quality settings limit shadows and multisampling.
 
@@ -112,11 +115,12 @@ godot --headless --path . -- --map-test
 godot --headless --path . -- --combat-test
 godot --headless --path . -- --movement-test
 godot --headless --path . -- --procedural-test
+godot --headless --path . -- --modes-test
 ```
 
 The engine integration suite checks navigation across both stairwells, reachability of all objectives, collision, movement, mouse look, unlimited sprint, bot detection and pursuit, billboard texture, audio buffers, pause/settings, contact death, jumpscare transition, respawn and victory. It exits nonzero on failure.
 
-The map suite checks both maps, menu selection and persistence, all spawn collisions, objective reachability, physical player and bot traversal onto the Construct roof, courtyard pursuit, gate completion, death text and respawning. The combat suite checks real PNG throws, exact damage, five-hit kills, independent HP, collision at high speed, walls, health bars, delayed respawn, import/selection, transparency, reload, aiming, pause and cleanup. Automated runs isolate settings and PNG files under `.godot/test_*` so they do not modify your normal preferences, images or records. If restricted filesystem access prevents Godot from opening its usual log, add `--log-file ./tests/engine-test.log`.
+The map suite checks both maps, menu selection and persistence, all spawn collisions, objective reachability, physical player and bot traversal onto the Construct roof, courtyard pursuit, gate completion, death text and respawning. The combat suite checks real PNG throws, exact damage, five-hit kills, independent HP, collision at high speed, walls, health bars, delayed respawn, import/selection, transparency, reload, aiming, pause and cleanup. The modes suite checks Arcade timing/score, Endless policy, Mayhem waves/upgrades/bosses, Sandbox controls, every random event, special projectiles and statistics recovery. Automated runs isolate settings and PNG files under `.godot/test_*` so they do not modify your normal preferences, images or records. If restricted filesystem access prevents Godot from opening its usual log, add `--log-file ./tests/engine-test.log`.
 
 The independent static checks need only Python 3:
 

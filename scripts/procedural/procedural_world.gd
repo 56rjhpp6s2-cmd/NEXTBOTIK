@@ -48,6 +48,11 @@ func _ready() -> void:
 		refuge_charge[safe] = 18.0
 	Settings.changed.connect(apply_quality)
 	apply_quality()
+	# Re-apply the mode-aware lever policy after the world's own interactables
+	# and lights are in place; start_run()'s synchronous call runs before this
+	# deferred _ready(), so this is the authoritative refresh point.
+	if session != null and is_instance_valid(session):
+		session.refresh_interactable_policy()
 
 func _build_tile_dictionary() -> void:
 	tiles.clear()

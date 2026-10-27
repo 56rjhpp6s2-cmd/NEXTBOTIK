@@ -93,14 +93,25 @@ func fire() -> Node3D:
 	var texture: Texture2D = images.current_texture()
 	if texture == null:
 		return null
-	cooldown_remaining = maxf(0.01, throw_cooldown)
+	var profile: Dictionary = session.game_modes.projectile_profile() if is_instance_valid(session.game_modes) else {}
+	if is_instance_valid(session.network) and session.network.active:
+		# The established network protocol transports the default projectile. New
+		# Mayhem modifiers are intentionally local until protocol authority is added.
+		profile = {}
+	cooldown_remaining = maxf(0.01, throw_cooldown * float(profile.get("cooldown_multiplier", 1.0)))
 	if not unlimited_ammo:
 		ammo -= 1
 	var projectile: Node3D
-	if is_instance_valid(session.network) and session.network.active:
-		projectile = session.network.throw_local(texture, player.view.camera.global_position, -player.view.camera.global_basis.z)
-	else:
-		projectile = launch(texture, player.view.camera.global_position, -player.view.camera.global_basis.z)
+	var count = maxi(1, int(profile.get("count", 1)))
+	for index in range(count):
+		var center = (float(count) - 1.0) * 0.5
+		var direction = (-player.view.camera.global_basis.z + player.view.camera.global_basis.x * (float(index) - center) * 0.035).normalized()
+		if is_instance_valid(session.network) and session.network.active:
+			projectile = session.network.throw_local(texture, player.view.camera.global_position, direction)
+		else:
+			projectile = launch(texture, player.view.camera.global_position, direction, null, false, profile)
+		if is_instance_valid(session.statistics):
+			session.statistics.add("total_png_projectiles_thrown")
 	_play_throw()
 	Sound.one_shot("png_throw", -13.0, randf_range(0.94, 1.08))
 	if not session.network.active:
@@ -109,7 +120,7 @@ func fire() -> Node3D:
 	state_changed.emit()
 	return projectile
 
-func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor: Node3D = null, visual_only: bool = false) -> Node3D:
+func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor: Node3D = null, visual_only: bool = false, profile: Dictionary = {}) -> Node3D:
 	var projectile = ProjectileScript.new()
 	projectile.shooter = owner_actor if owner_actor != null else player
 	projectile.visual_only = visual_only
@@ -117,12 +128,19 @@ func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor
 	projectile.damage_system = damage_system
 	projectile.run_id = run_id
 	projectile.texture = texture
-	projectile.damage = projectile_damage
+	projectile.damage = projectile_damage * float(profile.get("damage_multiplier", 1.0))
+	if randf() < float(profile.get("critical_chance", 0.0)):
+		projectile.damage *= 2.0
+		projectile.critical = true
 	projectile.speed = projectile_speed
 	projectile.maximum_range = maximum_range
 	projectile.lifetime = projectile_lifetime
 	projectile.image_size = Settings.projectile_size
 	projectile.collision_radius = clampf(Settings.projectile_size * 0.12, 0.06, 0.22)
+	projectile.explosion_radius = float(profile.get("explosion_radius", 0.0))
+	projectile.freeze_seconds = float(profile.get("freeze_seconds", 0.0))
+	projectile.piercing_remaining = int(profile.get("piercing", 0))
+	projectile.ricochets_remaining = int(profile.get("ricochets", 0))
 	projectile.velocity = direction.normalized() * projectile_speed
 	projectile.position = origin
 	session.add_child(projectile)
@@ -171,6 +189,8 @@ func _on_hit_confirmed(target: Node, _amount: float, lethal: bool) -> void:
 	last_hit_enemy = target
 	hit_time = 0.25
 	hit_lethal = lethal
+	if is_instance_valid(session.statistics):
+		session.statistics.add("successful_projectile_hits")
 
 func _scan_target() -> void:
 	aimed_enemy = null

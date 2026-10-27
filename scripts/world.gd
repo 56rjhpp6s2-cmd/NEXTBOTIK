@@ -49,6 +49,13 @@ func _ready() -> void:
 		refuge_charge[safe] = 18.0
 	Settings.changed.connect(apply_quality)
 	apply_quality()
+	# Interactables are populated by _props() above; the run coordinator's
+	# start_run() applies the mode policy synchronously, but _ready() itself
+	# runs deferred on the frame the world is added - after start_run()'s
+	# synchronous refresh. Re-apply here so breakers/exit land in the correct
+	# mode-specific state regardless of who triggered the (re)load.
+	if session != null and is_instance_valid(session):
+		session.refresh_interactable_policy()
 
 func _rect(x0: int, x1: int, z0: int, z1: int, floor_index: int, zone: String) -> void:
 	for x in range(x0, x1 + 1):
@@ -279,9 +286,11 @@ func apply_quality() -> void:
 
 func _process(delta: float) -> void:
 	elapsed += delta
-	for entry in flickers:
-		var wave = sin(elapsed * 9.0 + entry.phase) * sin(elapsed * 17.3 + entry.phase)
-		entry.light.light_energy = entry.energy * (0.35 if wave > 0.52 and not Settings.reduced_flashes else 1.0)
+	var lighting_event = is_instance_valid(session) and is_instance_valid(session.events) and session.events.active_event in ["BLACKOUT", "TOTAL DARKNESS"]
+	if not lighting_event:
+		for entry in flickers:
+			var wave = sin(elapsed * 9.0 + entry.phase) * sin(elapsed * 17.3 + entry.phase)
+			entry.light.light_energy = entry.energy * (0.35 if wave > 0.52 and not Settings.reduced_flashes else 1.0)
 	for key in refuge_charge:
 		if session != null and is_instance_valid(session.player) and session.is_running():
 			if not session.is_authority():
@@ -320,3 +329,21 @@ func reset_items() -> void:
 		item.reset()
 	for key in refuge_charge:
 		refuge_charge[key] = 18.0
+
+## Mode-aware enable/disable of progression levers (breakers + exit). Supplies
+## such as batteries and lockers stay usable in every mode; breakers are only
+## needed for Endless level completion or while a Blackout event is active, and
+## the exit only advances levels in Endless.
+func apply_interactable_policy(breakers_active: bool, exit_active: bool) -> void:
+	for item in interactables:
+		match item.kind:
+			"breaker":
+				item.active = breakers_active
+				item.visible = breakers_active or item.used
+			"exit":
+				item.active = exit_active
+				item.visible = exit_active
+			_:
+				item.active = true
+				if not item.used:
+					item.visible = true

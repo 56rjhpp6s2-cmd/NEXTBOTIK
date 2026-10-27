@@ -23,6 +23,7 @@ var target_label: Label
 var file_picker: FileDialog
 var return_to_game: bool = true
 var rebuilding: bool = false
+var opened_from_menu: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -187,12 +188,32 @@ func open_library() -> void:
 	ammo_toggle.disabled = session.network.active
 	image_list.grab_focus()
 
+func open_library_from_menu() -> void:
+	if gallery.visible or session.mode != session.Mode.MENU:
+		return
+	opened_from_menu = true
+	return_to_game = false
+	session.ui.menu.visible = false
+	weapon.suspend_input()
+	gallery.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	images.refresh()
+	_rebuild_list()
+	size_slider.value = Settings.projectile_size
+	ammo_toggle.button_pressed = Settings.unlimited_png_ammo
+	ammo_toggle.disabled = false
+	image_list.grab_focus()
+
 func close_library() -> void:
 	if not gallery.visible:
 		return
 	dismiss()
 	Settings.save()
 	weapon.require_release = true
+	if opened_from_menu:
+		opened_from_menu = false
+		session.ui.show_screen("menu")
+		return
 	if return_to_game and session.mode == session.Mode.PAUSED:
 		session.resume_run()
 	elif session.mode == session.Mode.PAUSED:

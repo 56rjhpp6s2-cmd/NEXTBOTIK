@@ -12,9 +12,12 @@ try {
     $content = Get-Content -LiteralPath $importLog -Raw -Encoding UTF8
     if ($import.ExitCode -ne 0 -or $content -match 'SCRIPT ERROR|Parse Error|Failed to load script') { throw "Import failed. See $importLog" }
     if ($Test) {
-        foreach ($suite in @('smoke', 'map', 'combat', 'movement', 'procedural')) {
+        $suites = @('smoke', 'map', 'movement', 'procedural', 'modes', 'combat', 'spawn')
+        $quitAfter = @{ spawn = 18000 }
+        foreach ($suite in $suites) {
             $testLog = Join-Path $logs ($suite + '.log')
-            $arguments = @('--headless', '--path', ('"' + $projectDirectory + '"'), '--max-fps', '60', '--quit-after', '6000', '--log-file', ('"' + $testLog + '"'), '--', ('--' + $suite + '-test'))
+            $qa = if ($quitAfter.ContainsKey($suite)) { $quitAfter[$suite] } else { 6000 }
+            $arguments = @('--headless', '--path', ('"' + $projectDirectory + '"'), '--max-fps', '60', '--quit-after', $qa, '--log-file', ('"' + $testLog + '"'), '--', ('--' + $suite + '-test'))
             $testProcess = Start-Process -FilePath $engine -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
             $content = Get-Content -LiteralPath $testLog -Raw -Encoding UTF8
             $resultPattern = $suite.ToUpperInvariant() + ' TEST: \d+ checks, 0 failures'

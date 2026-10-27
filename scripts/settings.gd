@@ -34,7 +34,8 @@ var camera_tilt: bool = true
 var show_speedometer: bool = false
 var brightness: float = 1.0
 var highest_level: int = 1
-const PERSISTED = ["sensitivity", "master", "music", "sfx", "fullscreen", "resolution", "quality", "difficulty", "best", "reduced_flashes", "level_index", "construct_best", "selected_png", "projectile_size", "unlimited_png_ammo", "network_name", "network_address", "network_port", "toggle_crouch", "toggle_sprint", "auto_bunnyhop", "camera_shake_intensity", "head_bob_intensity", "dynamic_fov", "camera_tilt", "show_speedometer", "brightness", "highest_level"]
+var selected_game_mode: int = 1
+const PERSISTED = ["sensitivity", "master", "music", "sfx", "fullscreen", "resolution", "quality", "difficulty", "best", "reduced_flashes", "level_index", "construct_best", "selected_png", "projectile_size", "unlimited_png_ammo", "network_name", "network_address", "network_port", "toggle_crouch", "toggle_sprint", "auto_bunnyhop", "camera_shake_intensity", "head_bob_intensity", "dynamic_fov", "camera_tilt", "show_speedometer", "brightness", "highest_level", "selected_game_mode"]
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -54,6 +55,7 @@ func _ready() -> void:
 	head_bob_intensity = clampf(head_bob_intensity, 0.0, 1.0)
 	brightness = clampf(brightness, 0.65, 1.35)
 	highest_level = maxi(1, highest_level)
+	selected_game_mode = clampi(selected_game_mode, 0, 3)
 	if best.size() != 3:
 		best = [0.0, 0.0, 0.0]
 	if construct_best.size() != 3:
@@ -71,8 +73,10 @@ func _ready() -> void:
 	_bind("pause", KEY_ESCAPE)
 	_bind("debug_ai", KEY_F3)
 	_bind("debug_regenerate", KEY_F6)
+	_bind("debug_spawn", KEY_F7)
 	_bind("reload_png", KEY_R)
 	_bind("png_library", KEY_TAB)
+	_bind("sandbox_tools", KEY_F2)
 	_bind_mouse("throw_png", MOUSE_BUTTON_LEFT)
 	_bind_mouse("aim_png", MOUSE_BUTTON_RIGHT)
 	_bind_mouse("next_png", MOUSE_BUTTON_WHEEL_DOWN)
@@ -83,7 +87,7 @@ func automated_run() -> bool:
 	return not automated_tag().is_empty()
 
 func automated_tag() -> String:
-	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--capture-construct", "--capture-combat", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
+	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--modes-test", "--capture-construct", "--capture-combat", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
 		if flag in OS.get_cmdline_user_args():
 			return flag.trim_prefix("--")
 	return ""

@@ -3,6 +3,7 @@ extends Node3D
 var kind: String = "battery"
 var title: String = ""
 var used: bool = false
+var active: bool = true
 var cell: Vector3i
 var indicator: Node3D
 var light: OmniLight3D
@@ -58,7 +59,7 @@ func activate() -> void:
 
 func reset() -> void:
 	used = false
-	visible = true
+	visible = active
 	if kind == "breaker":
 		for child in indicator.get_children():
 			if child is MeshInstance3D:

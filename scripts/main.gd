@@ -45,6 +45,10 @@ var progression_root_seed: int = 1
 var regeneration_serial: int = 0
 var transition_in_progress: bool = false
 var progression_config: ProceduralGenerationConfig = preload("res://resources/procedural_generation.tres")
+var gameplay_config: GameplayConfig = preload("res://resources/gameplay_config.tres")
+var statistics: StatisticsManager
+var game_modes: GameModeManager
+var events: RandomEventManager
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -75,9 +79,13 @@ func _ready() -> void:
 	ui.set_map_description(world)
 	_setup_combat()
 	_setup_network()
+	_setup_gameplay()
 	Sound.set_enabled(true)
 	if "--net-test-host" in OS.get_cmdline_user_args() or "--net-test-client" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/network_test.gd").new()
+		test_runner.run.call_deferred(self)
+	elif "--modes-test" in OS.get_cmdline_user_args():
+		test_runner = load("res://tests/modes_test.gd").new()
 		test_runner.run.call_deferred(self)
 	elif "--movement-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/movement_test.gd").new()
@@ -90,6 +98,9 @@ func _ready() -> void:
 		test_runner.run.call_deferred(self)
 	elif "--procedural-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/procedural_test.gd").new()
+		test_runner.run.call_deferred(self)
+	elif "--spawn-test" in OS.get_cmdline_user_args():
+		test_runner = load("res://tests/spawn_test.gd").new()
 		test_runner.run.call_deferred(self)
 	elif "--smoke-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/smoke_test.gd").new()
@@ -105,6 +116,23 @@ func _ready() -> void:
 	if "--capture-network" in OS.get_cmdline_user_args():
 		network_menu.open()
 		_capture_network.call_deferred()
+
+func _setup_gameplay() -> void:
+	statistics = StatisticsManager.new()
+	statistics.name = "StatisticsManager"
+	add_child(statistics)
+	game_modes = GameModeManager.new()
+	game_modes.name = "GameModeManager"
+	add_child(game_modes)
+	game_modes.setup(self, gameplay_config, statistics)
+	events = RandomEventManager.new()
+	events.name = "RandomEventManager"
+	add_child(events)
+	events.setup(self, gameplay_config)
+	ui.mode_selected.connect(_select_game_mode)
+	ui.upgrade_selected.connect(game_modes.choose_upgrade)
+	ui.sandbox_action.connect(game_modes.sandbox_action)
+	ui.set_mode_description(game_modes)
 
 func _setup_network() -> void:
 	network = preload("res://scripts/network/network_session.gd").new()
@@ -142,6 +170,7 @@ func network_spawn_local(state: Dictionary) -> void:
 	ui.result_button.disabled = false
 	ui.overlay.material.set_shader_parameter("darkness", 0.0)
 	ui.show_screen("game")
+	game_modes.select(GameModeManager.GameplayMode.ENDLESS)
 
 func apply_network_actor(state: Dictionary) -> void:
 	player.global_position = state.p
@@ -378,6 +407,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		combat_hud.open_library()
 		get_viewport().set_input_as_handled()
 		return
+	if event.is_action_pressed("sandbox_tools") and mode in [Mode.PLAYING, Mode.PAUSED] and game_modes.selected == GameModeManager.GameplayMode.SANDBOX:
+		ui.toggle_sandbox_tools()
+		player.active = not ui.sandbox_screen.visible
+		if player.active:
+			projectiles.require_release = true
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		if ui.settings_screen.visible:
 			_action("apply_settings")
@@ -392,6 +428,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("debug_regenerate") and debug_ai and current_level >= 4 and OS.is_debug_build() and not transition_in_progress and (not is_instance_valid(network) or not network.active):
 		regeneration_serial += 1
 		_transition_to_level(current_level, _seed_for_level(current_level, regeneration_serial))
+	if event.is_action_pressed("debug_spawn") and debug_ai and is_local_playing() and OS.is_debug_build() and is_authority():
+		var forced = _spawn_bot()
+		if forced != null:
+			ui.toast("DEBUG: forced Nextbot spawn -> %d total" % bots.size(), 3.0)
+		else:
+			ui.toast("DEBUG: forced spawn failed (nav=%s patrol=%d)" % [world.navigation.synchronized, world.patrol_points.size()], 3.0)
 
 func _action(action: String) -> void:
 	match action:
@@ -400,7 +442,32 @@ func _action(action: String) -> void:
 		"settings": ui.open_settings("menu")
 		"settings_pause": ui.open_settings("pause")
 		"png_library": combat_hud.open_library()
-		"network": network_menu.open()
+		"png_library_menu": combat_hud.open_library_from_menu()
+		"network":
+			game_modes.select(GameModeManager.GameplayMode.ENDLESS)
+			ui.set_mode_description(game_modes)
+			network_menu.open()
+		"statistics": ui.show_statistics(statistics)
+		"menu_screen":
+			ui.show_screen("menu")
+			ui.set_mode_description(game_modes)
+		"nextbot_editor":
+			game_modes.select(GameModeManager.GameplayMode.SANDBOX)
+			ui.set_mode_description(game_modes)
+			start_run()
+			ui.toggle_sandbox_tools()
+			player.active = false
+		"sandbox_spawn": game_modes.sandbox_action("spawn")
+		"sandbox_remove": game_modes.sandbox_action("remove")
+		"sandbox_event": game_modes.sandbox_action("event")
+		"sandbox_regenerate":
+			ui.show_screen("game")
+			game_modes.sandbox_action("regenerate")
+		"sandbox_reset": game_modes.sandbox_action("reset")
+		"sandbox_close":
+			ui.show_screen("game")
+			player.active = true
+			projectiles.require_release = true
 		"apply_settings":
 			ui.apply_settings()
 			ui.show_screen(ui.settings_return)
@@ -409,6 +476,7 @@ func _action(action: String) -> void:
 			if mode == Mode.PLAYING or mode == Mode.PAUSED:
 				_record_run()
 			Settings.save()
+			statistics.save_data()
 			if network.active:
 				await network.disconnect_session("", false)
 			get_tree().quit()
@@ -423,8 +491,10 @@ func start_run(force_new: bool = false, starting_level: int = 1, seed_value: int
 		network.respawn_local()
 		return
 	get_tree().paused = false
+	events.end_event()
+	game_modes.before_start()
 	_clear_bots()
-	current_level = maxi(1, starting_level)
+	current_level = maxi(1, starting_level) if game_modes.selected == GameModeManager.GameplayMode.ENDLESS else 1
 	current_generation_seed = seed_value if current_level >= 4 else 0
 	regeneration_serial = 0
 	progression_root_seed = int(rng.randi()) & 0x7fffffff
@@ -437,6 +507,7 @@ func start_run(force_new: bool = false, starting_level: int = 1, seed_value: int
 	elif world is ProceduralLevelWorld:
 		_load_world(Settings.level_index)
 	world.reset_items()
+	refresh_interactable_policy()
 	survival_time = 0.0
 	breakers = 0
 	threat = 0.0
@@ -459,7 +530,8 @@ func start_run(force_new: bool = false, starting_level: int = 1, seed_value: int
 	combat_hud.dismiss()
 	ui.result_button.disabled = false
 	ui.show_screen("game")
-	ui.toast("%s\nRESTORE THREE BREAKERS. FIND THE %s.\nE / INTERACT     F / FLASHLIGHT" % [world.display_name, world.objective_destination], 7.0)
+	game_modes.start_run()
+	ui.toast("%s / %s\n%s\nE INTERACT  /  F FLASHLIGHT  /  TAB PNG LIBRARY" % [game_modes.mode_name(), world.display_name, game_modes.objective_text()], 7.0)
 	Sound.target_intensity = 0.0
 	Sound.set_enabled(true)
 
@@ -489,6 +561,8 @@ func return_to_menu() -> void:
 	if mode in [Mode.PLAYING, Mode.PAUSED]:
 		_record_run()
 	get_tree().paused = false
+	events.end_event()
+	game_modes.finish_run()
 	mode = Mode.MENU
 	_clear_bots()
 	projectiles.clear_projectiles()
@@ -506,11 +580,13 @@ func return_to_menu() -> void:
 		menu_camera.position = world.menu_view_position
 		menu_camera.rotation = world.menu_view_rotation
 		ui.set_map_description(world)
+	refresh_interactable_policy()
 	menu_camera.make_current()
 	Sound.target_intensity = 0.0
 	ui.overlay.material.set_shader_parameter("danger", 0.0)
 	ui.overlay.material.set_shader_parameter("darkness", 0.0)
 	ui.show_screen("menu")
+	ui.set_mode_description(game_modes)
 
 func _clear_bots() -> void:
 	pending_respawns.clear()
@@ -526,11 +602,14 @@ func enemy_defeated(bot: NextbotEnemy, source: Node) -> void:
 		return
 	bots.erase(bot)
 	defeated_bots.append(bot)
+	events.enemy_defeated(bot)
+	game_modes.enemy_defeated(bot)
 	if network.active:
 		network.award_kill(source)
 	elif source == player:
 		kill_count += 1
-	pending_respawns.append({"remaining": maxf(0.05, bot.respawn_delay), "stats": {"max_health": bot.max_health, "respawn_delay": bot.respawn_delay, "face_variant": bot.face_variant}})
+	if game_modes.should_respawn_enemy(bot):
+		pending_respawns.append({"remaining": maxf(0.05, bot.respawn_delay), "stats": {"max_health": bot.max_health, "respawn_delay": bot.respawn_delay, "face_variant": bot.face_variant}})
 
 func _forget_enemy(bot: NextbotEnemy) -> void:
 	bots.erase(bot)
@@ -562,11 +641,16 @@ func _process(delta: float) -> void:
 	_update_enemy_respawns(delta)
 	var max_bots: int = maximum_active_bots()
 	var desired_count = mini(max_bots, 1 + int(survival_time / 55.0) + (1 if run_difficulty == 2 else 0))
-	if spawn_timer <= 0.0 and bots.size() + pending_respawns.size() < desired_count:
+	desired_count = game_modes.desired_active_bots(desired_count)
+	if game_modes.uses_standard_spawner() and spawn_timer <= 0.0 and world.navigation.synchronized and bots.size() + pending_respawns.size() < desired_count:
 		_spawn_bot()
 		spawn_timer = 5.0
 		if bots.size() == 1:
 			ui.toast("SOMETHING HAS ENTERED THE COMPLEX.", 4.0)
+	elif game_modes.uses_standard_spawner() and spawn_timer <= 0.0 and not world.navigation.synchronized:
+		# Navigation is built asynchronously. Keep the request armed instead of
+		# losing the initial spawn while a newly selected map is still loading.
+		spawn_timer = 0.0
 	if ambient_timer <= 0.0:
 		var horror_pressure = maxf(0.0, float(current_level - 3))
 		ambient_timer = rng.randf_range(maxf(10.0, 23.0 - horror_pressure * 0.55), maxf(18.0, 41.0 - horror_pressure * 0.9))
@@ -578,12 +662,25 @@ func _process(delta: float) -> void:
 			ui.toast("YOU CANNOT HOLD YOUR BREATH ANY LONGER.", 3.0)
 	_update_threat(delta)
 	_update_interaction()
+	game_modes.tick(delta)
+	events.tick(delta)
 	ui.update_hud(self)
 
 func _spawn_bot(at: Vector3 = Vector3.INF, stats: Dictionary = {}) -> NextbotEnemy:
+	if not is_instance_valid(world) or not is_instance_valid(player):
+		push_warning("SPAWN SKIPPED: world/player invalid (mode=%s)" % game_modes.mode_name())
+		return null
 	var point = at
 	if point == Vector3.INF:
-		point = world.far_point(player.global_position, 40.0)
+		# Automatic placement: validate navigation readiness, pick a patrol
+		# point that is both far from the player and collision-cleared, and
+		# never silently fall back onto the player's tile. Returning null lets
+		# the caller (standard spawner, Mayhem waves, Sandbox batches) retry
+		# safely instead of planting an enemy inside a wall or on the player.
+		point = _find_safe_spawn_point()
+		if point == Vector3.INF:
+			push_warning("SPAWN FAILED: no valid spawn point (mode=%s nav=%s patrol=%d bots=%d/%d)" % [game_modes.mode_name(), world.navigation.synchronized, world.patrol_points.size(), bots.size(), maximum_active_bots()])
+			return null
 	var bot = NextbotEnemy.new()
 	bot.session = self
 	bot.process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -599,6 +696,18 @@ func _spawn_bot(at: Vector3 = Vector3.INF, stats: Dictionary = {}) -> NextbotEne
 	bot.chase_speed_cap = 21.2
 	bot.max_health = maxf(1.0, stats.get("max_health", 100.0))
 	bot.respawn_delay = maxf(0.05, stats.get("respawn_delay", 10.0))
+	bot.speed_multiplier = maxf(0.1, stats.get("speed_multiplier", 1.0))
+	if stats.has("speed_override"):
+		bot.speed = maxf(0.0, float(stats.speed_override))
+	bot.detection_range = maxf(0.0, float(stats.get("detection_range", bot.detection_range)))
+	bot.aggression = maxf(0.05, float(stats.get("aggression", bot.aggression)))
+	bot.attack_damage = maxf(0.0, float(stats.get("attack_damage", 100.0)))
+	bot.face_scale = clampf(float(stats.get("face_scale", 1.0)), 0.25, 3.0)
+	bot.custom_face = stats.get("custom_face", null)
+	bot.is_boss = bool(stats.get("boss", false))
+	bot.event_spawned = bool(stats.get("event_spawned", false))
+	bot.event_tag = str(stats.get("event_tag", ""))
+	bot.angry_observation = bool(stats.get("angry", false))
 	bot.bot_index = int(stats.get("network_id", next_bot_id))
 	bot.face_variant = int(stats.get("face_variant", bot.bot_index + 1))
 	next_bot_id = maxi(next_bot_id + 1, bot.bot_index + 1)
@@ -608,7 +717,37 @@ func _spawn_bot(at: Vector3 = Vector3.INF, stats: Dictionary = {}) -> NextbotEne
 	add_child(bot)
 	bot.tree_exiting.connect(_forget_enemy.bind(bot))
 	bots.append(bot)
+	events.enemy_spawned(bot)
+	if debug_ai:
+		print("SPAWN OK: mode=%s bot=%d at=%s bots=%d/%d nav=%s" % [game_modes.mode_name(), bot.bot_index, str(point), bots.size(), maximum_active_bots(), world.navigation.synchronized])
 	return bot
+
+# Picks a navigable, collision-cleared patrol point away from the player for
+# automatic enemy placement. Returns Vector3.INF only when the map has no
+# usable spawn surface at all (e.g. navigation still building); callers must
+# treat that as a retry signal, never as a successful spawn.
+func _find_safe_spawn_point() -> Vector3:
+	if not world.navigation.synchronized:
+		return Vector3.INF
+	if world.patrol_points.is_empty():
+		return Vector3.INF
+	var clearance := AABB(Vector3.ZERO, Vector3(1.0, 1.8, 1.0))
+	var far: Array[Vector3] = []
+	for p in world.patrol_points:
+		if p.distance_to(player.global_position) < 40.0:
+			continue
+		clearance.position = p + Vector3(-0.5, 0.3, -0.5)
+		if world.navigation_clear(clearance):
+			far.append(p)
+	if not far.is_empty():
+		return far[rng.randi_range(0, far.size() - 1)]
+	for p in world.patrol_points:
+		clearance.position = p + Vector3(-0.5, 0.3, -0.5)
+		if world.navigation_clear(clearance):
+			return p
+	# Last resort: any patrol point beats spawning on the player, but only if
+	# nothing better exists; the standard spawner will retry next frame.
+	return world.patrol_points[rng.randi_range(0, world.patrol_points.size() - 1)]
 
 func _update_threat(delta: float) -> void:
 	chased = false
@@ -631,7 +770,7 @@ func _update_interaction() -> void:
 	var eye = player.view.camera.global_position
 	var forward = -player.view.camera.global_basis.z
 	for item in world.interactables:
-		if item.used:
+		if item.used or not item.active:
 			continue
 		var aim = item.global_position + (Vector3.UP * 1.2 if item.kind == "hide" else Vector3.ZERO)
 		var offset = aim - eye
@@ -671,13 +810,16 @@ func _interact() -> void:
 		"breaker":
 			focused_item.activate()
 			breakers += 1
+			events.breaker_activated()
 			Sound.spatial("breaker", world, focused_item.global_position)
 			ui.toast("%d / 3 BREAKERS RESTORED\n%s" % [breakers, world.objective_destination + " IS NOW ONLINE" if breakers == 3 else "THE NOISE WILL DRAW THEM HERE"], 4.0)
 			for bot in bots:
 				bot.hear(player.global_position, 4.0)
 			spawn_timer = minf(spawn_timer, 3.0)
 		"exit":
-			if breakers == 3:
+			if not game_modes.can_advance_level():
+				ui.toast("THIS EXIT IS INACTIVE IN %s." % game_modes.mode_name(), 2.0)
+			elif breakers == 3:
 				advance_level()
 			else:
 				ui.toast("RESTORE ALL THREE BREAKERS FIRST.", 2.0)
@@ -723,7 +865,14 @@ func kill_player(bot) -> void:
 		return
 	if not is_running():
 		return
+	if game_modes.player_invincible():
+		ui.toast("SANDBOX INVINCIBILITY ABSORBED THE HIT.", 1.5)
+		return
+	if game_modes.consume_shield():
+		ui.toast("FIREWALL SHIELD CONSUMED.", 1.5)
+		return
 	mode = Mode.DYING
+	events.end_event()
 	player.active = false
 	player.velocity = Vector3.ZERO
 	projectiles.clear_projectiles()
@@ -734,6 +883,8 @@ func kill_player(bot) -> void:
 	for enemy in bots:
 		enemy.enabled = false
 	_record_run()
+	statistics.add("total_deaths")
+	statistics.record_maximum("best_survival_time", survival_time)
 	Sound.jumpscare()
 	var texture = bot.face.texture if bot != null else face_texture
 	await ui.play_jumpscare(texture)
@@ -744,6 +895,7 @@ func kill_player(bot) -> void:
 
 func _win_run() -> void:
 	mode = Mode.RESULT
+	events.end_event()
 	player.active = false
 	projectiles.clear_projectiles()
 	projectiles.suspend_input()
@@ -762,7 +914,17 @@ func nextbot_speed_multiplier() -> float:
 func maximum_active_bots() -> int:
 	var base: int = [2, 4, 5][run_difficulty]
 	var level_bonus: int = maxi(0, floori(float(current_level - 3) / 2.0))
-	return mini(progression_config.maximum_nextbots, base + level_bonus)
+	return game_modes.maximum_active_bots(mini(progression_config.maximum_nextbots, base + level_bonus))
+
+## Centralised mode-aware lever policy. Breakers and the exit are progression
+## objects that belong to Endless; other modes hide them so they cannot block
+## round/wave/sandbox play. Breakers re-appear while a Blackout event needs them.
+func refresh_interactable_policy() -> void:
+	if not is_instance_valid(world) or not is_instance_valid(game_modes) or not is_instance_valid(events):
+		return
+	var endless := game_modes.selected == GameModeManager.GameplayMode.ENDLESS
+	var needs_breakers := endless or events.active_event == "BLACKOUT"
+	world.apply_interactable_policy(needs_breakers, endless)
 
 func _seed_for_level(level: int, salt: int = 0) -> int:
 	var value = int(hash([progression_root_seed, level, salt])) & 0x7fffffff
@@ -775,12 +937,13 @@ func advance_level() -> void:
 		if network.is_host():
 			network.advance_level()
 		return
-	_transition_to_level(current_level + 1, _seed_for_level(current_level + 1))
+	_transition_to_level(current_level + 1, _seed_for_level(current_level + 1), not Settings.automated_run())
 
 func _transition_to_level(next_level: int, seed_value: int, animate: bool = true, finish_locally: bool = true) -> bool:
 	if transition_in_progress:
 		return false
 	transition_in_progress = true
+	events.end_event()
 	mode = Mode.TRANSITION
 	player.active = false
 	player.hidden = false
@@ -807,6 +970,7 @@ func _transition_to_level(next_level: int, seed_value: int, animate: bool = true
 		if world is ProceduralLevelWorld:
 			_load_world(run_map_index)
 		world.reset_items()
+		refresh_interactable_policy()
 	breakers = 0
 	threat = 0.0
 	chased = false
@@ -836,19 +1000,22 @@ func _transition_to_level(next_level: int, seed_value: int, animate: bool = true
 	projectiles.reset_run(is_instance_valid(network) and network.active)
 	combat_hud.dismiss()
 	ui.show_screen("game")
-	Settings.record_level(current_level)
+	if game_modes.selected == GameModeManager.GameplayMode.ENDLESS:
+		Settings.record_level(current_level)
+		statistics.record_maximum("highest_endless_level", current_level)
 	if finish_locally:
 		await complete_level_transition(true, animate)
 	return navigation_ready
 
 func complete_level_transition(spawn_enemies: bool = true, animate: bool = true) -> void:
 	var staged_bots: Array[NextbotEnemy] = []
-	if spawn_enemies and is_authority() and world.navigation.synchronized:
+	if spawn_enemies and is_authority() and world.navigation.synchronized and game_modes.uses_standard_spawner():
 		var initial_count: int = mini(maximum_active_bots(), 1 + floori(float(maxi(0, current_level - 4)) / 3.0))
 		for index in range(initial_count):
 			var bot = _spawn_bot()
-			bot.enabled = false
-			staged_bots.append(bot)
+			if bot != null:
+				bot.enabled = false
+				staged_bots.append(bot)
 	if animate:
 		await ui.fade_from_black()
 	mode = Mode.PLAYING
@@ -858,11 +1025,45 @@ func complete_level_transition(spawn_enemies: bool = true, animate: bool = true)
 		if is_instance_valid(bot):
 			bot.enabled = true
 	transition_in_progress = false
+	if game_modes.selected == GameModeManager.GameplayMode.SANDBOX:
+		game_modes._capture_sandbox_lighting()
+		game_modes.apply_sandbox_lighting()
 	ui.toast("LEVEL %02d\nTHE WAY BACK IS GONE." % current_level, 4.0)
 
 func _record_run() -> void:
 	# Settings may be edited while paused; records always belong to the run difficulty.
 	new_record = Settings.record_for_map(run_map_index, run_difficulty, survival_time) or new_record
+	statistics.record_maximum("best_survival_time", survival_time)
+
+func _select_game_mode(index: int) -> void:
+	if mode != Mode.MENU or network.active:
+		return
+	game_modes.select(index)
+	ui.set_mode_description(game_modes)
+
+func finish_arcade_round() -> void:
+	if mode != Mode.PLAYING or game_modes.selected != GameModeManager.GameplayMode.ARCADE:
+		return
+	mode = Mode.RESULT
+	events.end_event()
+	player.active = false
+	projectiles.clear_projectiles()
+	projectiles.suspend_input()
+	pending_respawns.clear()
+	for bot in bots:
+		bot.enabled = false
+	var result = game_modes.arcade_finished()
+	statistics.save_data()
+	ui.show_arcade_result(result, game_modes.session_leaderboard)
+
+func spawn_boss_minions(boss: NextbotEnemy) -> void:
+	if not is_authority() or not is_instance_valid(boss):
+		return
+	ui.toast("BOSS PHASE 3\nMINIONS INBOUND", 3.0)
+	for index in range(3):
+		var minion = _spawn_bot(Vector3.INF, {"max_health": 45.0, "speed_multiplier": 1.15, "respawn_delay": 9999.0, "event_spawned": boss.event_spawned, "event_tag": boss.event_tag})
+		if minion != null and boss.event_spawned:
+			events.event_bots.append(minion)
 
 func _capture(label: String) -> void:
 	await get_tree().process_frame
