@@ -38,16 +38,11 @@ jobs:
           godot --headless --path . --export-release "Windows Desktop" build/release/BELOW_ZERO.exe
           test -s build/release/BELOW_ZERO.exe
 
-      - name: Package game
-        run: |
-          cd build/release
-          zip -9 ../BELOW_ZERO_Windows_${GITHUB_REF_NAME}.zip BELOW_ZERO.exe
-
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" "build/BELOW_ZERO_Windows_${GITHUB_REF_NAME}.zip" \
+          gh release create "${GITHUB_REF_NAME}" "build/release/BELOW_ZERO.exe" \
             --title "BELOW / ZERO ${GITHUB_REF_NAME}" \
             --generate-notes \
             --verify-tag
