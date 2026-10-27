@@ -1,4 +1,4 @@
-name: Build Windows game
+name: Build and publish Windows game
 
 on:
   push:
@@ -6,14 +6,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: windows-latest-main
+  cancel-in-progress: true
 
 jobs:
   windows:
-    name: Export BELOW ZERO for Windows
+    name: Build BELOW ZERO for Windows
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -39,10 +42,36 @@ jobs:
           godot --headless --path . --export-release "Windows Desktop" build/BELOW_ZERO.exe
           test -s build/BELOW_ZERO.exe
 
-      - name: Upload Windows game
+      - name: Package Windows game
+        run: |
+          cd build
+          zip -9 BELOW_ZERO_Windows_Latest.zip BELOW_ZERO.exe
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: BELOW_ZERO-Windows
-          path: build/BELOW_ZERO.exe
+          path: build/BELOW_ZERO_Windows_Latest.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish rolling development release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tag="auto-build"
+          if gh api "repos/$GH_REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GH_REPO/git/refs/tags/$tag" -f sha="$SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$tag" -f sha="$SHA" >/dev/null
+          fi
+          notes="Automatically built from main at commit ${SHA:0:12}. Download the Windows ZIP, extract, and launch BELOW_ZERO.exe. This is a development build, not a stable release."
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" build/BELOW_ZERO_Windows_Latest.zip --clobber
+            gh release edit "$tag" --title "BELOW / ZERO — latest development build" --notes "$notes" --prerelease
+          else
+            gh release create "$tag" build/BELOW_ZERO_Windows_Latest.zip --title "BELOW / ZERO — latest development build" --notes "$notes" --prerelease --verify-tag
+          fi

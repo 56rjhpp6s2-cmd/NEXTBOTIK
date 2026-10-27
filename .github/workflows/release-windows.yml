@@ -1,0 +1,53 @@
+name: Publish Windows release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish BELOW ZERO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Godot and export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.5.1
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import resources
+        run: godot --headless --path . --editor --import --quit
+
+      - name: Validate project
+        run: python3 tests/validate_project.py
+
+      - name: Export Windows game
+        run: |
+          mkdir -p build/release
+          godot --headless --path . --export-release "Windows Desktop" build/release/BELOW_ZERO.exe
+          test -s build/release/BELOW_ZERO.exe
+
+      - name: Package game
+        run: |
+          cd build/release
+          zip -9 ../BELOW_ZERO_Windows_${GITHUB_REF_NAME}.zip BELOW_ZERO.exe
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" "build/BELOW_ZERO_Windows_${GITHUB_REF_NAME}.zip" \
+            --title "BELOW / ZERO ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag
