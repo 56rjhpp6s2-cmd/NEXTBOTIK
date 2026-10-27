@@ -1,0 +1,48 @@
+name: Build Windows game
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Export BELOW ZERO for Windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Godot and export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.5.1
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import project resources
+        run: godot --headless --path . --editor --import --quit
+
+      - name: Validate project
+        run: python3 tests/validate_project.py
+
+      - name: Export Windows executable
+        run: |
+          mkdir -p build
+          godot --headless --path . --export-release "Windows Desktop" build/BELOW_ZERO.exe
+          test -s build/BELOW_ZERO.exe
+
+      - name: Upload Windows game
+        uses: actions/upload-artifact@v4
+        with:
+          name: BELOW_ZERO-Windows
+          path: build/BELOW_ZERO.exe
+          if-no-files-found: error
+          retention-days: 30
