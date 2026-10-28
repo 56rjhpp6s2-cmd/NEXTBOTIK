@@ -163,6 +163,12 @@ class ProjectChecks(unittest.TestCase):
         data = (ROOT / "assets/nextbot_faces/5402324111498878359.jpg").read_bytes()
         self.assertEqual(hashlib.sha256(data).hexdigest(), "528395702258bc3c963bc48e5ffa4ebbb82e33f67359b51f7c01f6aafc3a9ba8")
 
+    def test_bossfight_photos_are_preserved(self):
+        idle = (ROOT / "assets/bosses/bossfight_idle.jpg").read_bytes()
+        attack = (ROOT / "assets/bosses/bossfight_attack.jpg").read_bytes()
+        self.assertEqual(hashlib.sha256(idle).hexdigest(), "0a739ce5013dd47ef585793a2dda8bbf4e899821a4bc47c2c64ae8c5ba90bbc8")
+        self.assertEqual(hashlib.sha256(attack).hexdigest(), "2076b12f8193b8f1034cead1379f8c24339b14e90595dba53e011bee4bd59eba")
+
     def test_no_machine_specific_paths(self):
         paths = [*ROOT.glob("scripts/**/*.gd"), *ROOT.glob("tools/*.ps1"), *ROOT.glob("*.cmd")]
         for path in paths:

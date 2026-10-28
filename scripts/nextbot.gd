@@ -15,6 +15,9 @@ enum State { IDLE, WANDER, INVESTIGATE, SEARCH, CHASE, ATTACK, STUNNED, DEAD }
 var combat
 var face_variant: int = 0
 var custom_face: Texture2D
+var attack_face: Texture2D
+var idle_face: Texture2D
+var attack_visual_active: bool = false
 var face_scale: float = 1.0
 var speed_multiplier: float = 1.0
 var event_speed_multiplier: float = 1.0
@@ -68,6 +71,7 @@ func _ready() -> void:
 	add_child(collider)
 	face = Sprite3D.new()
 	face.texture = custom_face if custom_face != null else session.face_for_variant(face_variant)
+	idle_face = face.texture
 	face.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	face.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	face.pixel_size = 2.7 / float(face.texture.get_height())
@@ -208,6 +212,7 @@ func _physics_process(delta: float) -> void:
 		if health_ratio < 0.2 and not boss_minions_summoned and session.is_authority():
 			boss_minions_summoned = true
 			session.spawn_boss_minions(self)
+		_set_attack_visual(boss_telegraph > 0.0 or boss_dash_remaining > 0.0)
 	var observation_multiplier = 1.0
 	if angry_observation:
 		observation_multiplier = 0.42 if _observed_by_any_player() else 1.32
@@ -316,6 +321,8 @@ func _change_state(next: State) -> void:
 		return
 	state = next
 	state_time = 0.0
+	if is_boss and attack_face != null:
+		_set_attack_visual(state == State.ATTACK)
 	match state:
 		State.WANDER:
 			_set_target(world.patrol_points[rng.randi_range(0, world.patrol_points.size() - 1)])
@@ -324,6 +331,14 @@ func _change_state(next: State) -> void:
 			_set_target(last_known)
 		State.CHASE:
 			repath_time = 0.0
+
+func _set_attack_visual(active: bool) -> void:
+	if attack_face == null or not is_instance_valid(face) or attack_visual_active == active:
+		return
+	attack_visual_active = active
+	face.texture = attack_face if active else idle_face
+	if face.texture != null:
+		face.pixel_size = 2.7 / float(maxi(1, face.texture.get_height()))
 
 func receive_png_hit(amount: float, source: Node, point: Vector3, direction: Vector3) -> float:
 	return combat.receive_hit(amount, source, point, direction)

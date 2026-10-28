@@ -27,11 +27,12 @@ This file is the durable implementation checklist for the master overhaul. Check
 - [x] Central gameplay-mode/event tuning resource.
 - [x] Corruption-tolerant local statistics store.
 - [x] Reusable Mayhem modifier model.
-- [x] Four selectable, playable game-mode loops and mode-specific HUD/results.
+- [x] Five selectable, playable game-mode loops and mode-specific HUD/results, including the dedicated Bossfight progression cycle.
 - [x] Reversible random-event manager and all seven event types.
 - [x] Phased boss support, charge telegraph, minions and boss HUD.
 - [x] Live Sandbox controls and selected-PNG custom enemy spawning.
 - [x] Reliable automatic spawning in Arcade, Endless and Mayhem; configurable Sandbox auto-spawn toggle, interval, batch and cap.
+- [x] Original Dust Quarter objective map, randomized switches, Sun Ring arena, escalating 4,000 + 500 HP bosses and two-state supplied boss artwork.
 - [x] Reusable explosive, freezing, piercing, ricochet, critical and multishot projectile modifiers.
 - [x] Static and Godot engine tests for the new architecture.
 

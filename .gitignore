@@ -3,4 +3,5 @@ tools/engine/
 build/
 *.tmp
 *.log
+tests/captures/
 __pycache__/

@@ -18,7 +18,7 @@ func frames(game, count: int) -> void:
 
 func run(game) -> void:
 	await game.get_tree().physics_frame
-	check(game.ui.mode_choice.item_count == 4, "Main menu exposes all four game modes")
+	check(game.ui.mode_choice.item_count == 5, "Main menu exposes all five game modes")
 	game._select_game_mode(GameModeManager.GameplayMode.ENDLESS)
 	check(game.game_modes.selected == GameModeManager.GameplayMode.ENDLESS, "Endless remains the safe default mode")
 	check(game.statistics.data.has("bosses_defeated"), "Persistent statistics schema is loaded")

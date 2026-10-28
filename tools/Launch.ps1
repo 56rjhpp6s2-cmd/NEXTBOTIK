@@ -12,7 +12,7 @@ try {
     $content = Get-Content -LiteralPath $importLog -Raw -Encoding UTF8
     if ($import.ExitCode -ne 0 -or $content -match 'SCRIPT ERROR|Parse Error|Failed to load script') { throw "Import failed. See $importLog" }
     if ($Test) {
-        $suites = @('smoke', 'map', 'movement', 'procedural', 'modes', 'combat', 'spawn')
+        $suites = @('smoke', 'map', 'movement', 'procedural', 'modes', 'bossfight', 'combat', 'spawn')
         $quitAfter = @{ spawn = 18000 }
         foreach ($suite in $suites) {
             $testLog = Join-Path $logs ($suite + '.log')

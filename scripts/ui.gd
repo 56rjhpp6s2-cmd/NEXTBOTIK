@@ -161,7 +161,7 @@ func _build_menu() -> void:
 	var buttons = _vbox(menu, Vector2(92, 430), 440)
 	mode_choice = OptionButton.new()
 	mode_choice.custom_minimum_size = Vector2(440, 58)
-	for title in ["MODE: ARCADE", "MODE: ENDLESS", "MODE: PNG MAYHEM", "MODE: SANDBOX"]:
+	for title in ["MODE: ARCADE", "MODE: ENDLESS", "MODE: PNG MAYHEM", "MODE: SANDBOX", "MODE: BOSSFIGHT"]:
 		mode_choice.add_item(title)
 	mode_choice.select(Settings.selected_game_mode)
 	mode_choice.item_selected.connect(_on_mode_selected)
@@ -209,6 +209,13 @@ func set_mode_description(manager) -> void:
 		return
 	mode_choice.select(int(manager.selected))
 	mode_description.text = manager.description()
+	var dedicated_map: bool = int(manager.selected) == GameModeManager.GameplayMode.BOSSFIGHT
+	map_choice.disabled = dedicated_map
+	map_choice.tooltip_text = "BOSSFIGHT uses its own Dust Quarter map and Sun Ring arena." if dedicated_map else ""
+	if dedicated_map:
+		mission_label.text = "Three randomized switches per sector.\nEvery fourth level is a boss arena.\nBoss HP begins at 4000 and rises by 500."
+	elif is_instance_valid(get_parent()) and is_instance_valid(get_parent().world):
+		mission_label.text = get_parent().world.mission_description
 
 func set_map_description(world) -> void:
 	map_choice.select(Settings.level_index)

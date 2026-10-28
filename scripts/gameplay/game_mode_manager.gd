@@ -1,17 +1,20 @@
 class_name GameModeManager
 extends Node
-## Rules and scoring for the four local modes. The run coordinator still owns
+## Rules and scoring for the local modes. The run coordinator still owns
 ## world transitions, actors and screens; this node only defines mode policy.
 
-enum GameplayMode { ARCADE, ENDLESS, PNG_MAYHEM, SANDBOX }
+enum GameplayMode { ARCADE, ENDLESS, PNG_MAYHEM, SANDBOX, BOSSFIGHT }
 
-const NAMES := ["ARCADE", "ENDLESS", "PNG MAYHEM", "SANDBOX"]
+const NAMES := ["ARCADE", "ENDLESS", "PNG MAYHEM", "SANDBOX", "BOSSFIGHT"]
 const DESCRIPTIONS := [
 	"Survive a five-minute pursuit. Speed, slides and close escapes build score.",
 	"Descend forever. Procedural rooms, darkness and aggression begin at Level 4.",
 	"Clear escalating combat waves, choose reusable PNG upgrades and defeat bosses.",
 	"A live Nextbot playground. Spawn, tune, relight and regenerate without restarting.",
+	"Find three randomized switches across a desert district, then defeat a boss every fourth level.",
 ]
+const BOSSFIGHT_IDLE_FACE: Texture2D = preload("res://assets/bosses/bossfight_idle.jpg")
+const BOSSFIGHT_ATTACK_FACE: Texture2D = preload("res://assets/bosses/bossfight_attack.jpg")
 
 var session
 var config: GameplayConfig
@@ -32,6 +35,7 @@ var mayhem_multiplier: float = 1.0
 var mayhem_waiting_for_upgrade: bool = false
 var mayhem_next_wave_delay: float = 0.0
 var mayhem_wave_pending: bool = false
+var bossfight_boss_pending: bool = false
 var offered_upgrades: Array[String] = []
 var active_boss: NextbotEnemy
 var ending: bool = false
@@ -62,7 +66,7 @@ func setup(owner_session, tuning: GameplayConfig, stats: StatisticsManager) -> v
 	session = owner_session
 	config = tuning
 	statistics = stats
-	selected = clampi(Settings.selected_game_mode, 0, 3)
+	selected = clampi(Settings.selected_game_mode, 0, 4)
 	rng.randomize()
 	base_walk_speed = session.player.walk_speed
 	base_sprint_speed = session.player.sprint_speed
@@ -70,7 +74,7 @@ func setup(owner_session, tuning: GameplayConfig, stats: StatisticsManager) -> v
 	sandbox.auto_spawn_limit = config.sandbox_auto_spawn_limit
 
 func select(index: int) -> void:
-	selected = clampi(index, 0, 3)
+	selected = clampi(index, 0, 4)
 	Settings.selected_game_mode = int(selected)
 	Settings.save()
 
@@ -118,6 +122,8 @@ func start_run() -> void:
 			sandbox_spawn_timer = 0.25
 			_capture_sandbox_lighting()
 			apply_sandbox_lighting()
+		GameplayMode.BOSSFIGHT:
+			bossfight_level_ready()
 
 func finish_run() -> void:
 	_restore_player_tuning()
@@ -133,6 +139,8 @@ func tick(delta: float) -> void:
 			_tick_mayhem(delta)
 		GameplayMode.SANDBOX:
 			_tick_sandbox(delta)
+		GameplayMode.BOSSFIGHT:
+			_tick_bossfight()
 
 func _tick_arcade(delta: float) -> void:
 	if ending:
@@ -221,6 +229,12 @@ func enemy_defeated(bot: NextbotEnemy) -> void:
 			if mayhem_wave_kills >= mayhem_wave_target:
 				statistics.record_maximum("best_completed_wave", mayhem_wave)
 				_show_upgrades.call_deferred()
+		GameplayMode.BOSSFIGHT:
+			if bot.is_boss and is_bossfight_boss_level():
+				bossfight_boss_pending = false
+				active_boss = null
+				session.ui.toast("BOSS DEFEATED\nTHE NEXT CYCLE IS OPEN", 4.0)
+				session.advance_level.call_deferred()
 
 func _show_upgrades() -> void:
 	if ending or selected != GameplayMode.PNG_MAYHEM:
@@ -258,25 +272,31 @@ func _restore_player_tuning() -> void:
 func should_respawn_enemy(bot: NextbotEnemy) -> bool:
 	if bot.is_boss or bot.event_spawned:
 		return false
+	if selected == GameplayMode.BOSSFIGHT:
+		return not is_bossfight_boss_level()
 	return selected in [GameplayMode.ARCADE, GameplayMode.ENDLESS]
 
 func uses_standard_spawner() -> bool:
-	return selected in [GameplayMode.ARCADE, GameplayMode.ENDLESS]
+	return selected in [GameplayMode.ARCADE, GameplayMode.ENDLESS] or (selected == GameplayMode.BOSSFIGHT and not is_bossfight_boss_level())
 
 func maximum_active_bots(default_value: int) -> int:
 	if selected == GameplayMode.ARCADE:
 		var pressure = int((config.arcade_round_seconds - arcade_time_left) / 60.0)
 		return mini(config.arcade_maximum_nextbots, config.arcade_starting_nextbots + pressure)
+	if selected == GameplayMode.BOSSFIGHT:
+		return 1 if is_bossfight_boss_level() else mini(config.bossfight_maximum_nextbots, config.bossfight_starting_nextbots + bossfight_difficulty_tier())
 	return default_value
 
 func desired_active_bots(default_value: int) -> int:
 	if selected == GameplayMode.ARCADE:
 		var elapsed_minutes = int((config.arcade_round_seconds - arcade_time_left) / 60.0)
 		return mini(config.arcade_maximum_nextbots, config.arcade_starting_nextbots + elapsed_minutes)
+	if selected == GameplayMode.BOSSFIGHT:
+		return 1 if is_bossfight_boss_level() else mini(config.bossfight_maximum_nextbots, config.bossfight_starting_nextbots + bossfight_difficulty_tier())
 	return default_value
 
 func can_advance_level() -> bool:
-	return selected == GameplayMode.ENDLESS
+	return selected == GameplayMode.ENDLESS or (selected == GameplayMode.BOSSFIGHT and not is_bossfight_boss_level())
 
 func attacks_enabled() -> bool:
 	return bool(sandbox.attacks) if selected == GameplayMode.SANDBOX else true
@@ -321,6 +341,8 @@ func mode_status() -> String:
 			return "WAVE %02d  /  KILLS %d/%d  /  SCORE %06d" % [mayhem_wave, mayhem_wave_kills, mayhem_wave_target, mayhem_total_score]
 		GameplayMode.SANDBOX:
 			return "SANDBOX  /  %d ACTIVE  /  F2 TOOLS" % session.bots.size()
+		GameplayMode.BOSSFIGHT:
+			return "BOSSFIGHT  /  LEVEL %02d  /  CYCLE %02d" % [session.current_level, bossfight_cycle_number()]
 	return ""
 
 func objective_text() -> String:
@@ -329,10 +351,69 @@ func objective_text() -> String:
 		GameplayMode.ENDLESS: return "BREAKERS  %d / 3  ->  %s" % [session.breakers, session.world.objective_destination if session.breakers == 3 else "RESTORE POWER"]
 		GameplayMode.PNG_MAYHEM: return "CLEAR THE WAVE  /  THROW PNGs"
 		GameplayMode.SANDBOX: return "AUTO %s  /  %d ACTIVE  /  F2 LIVE CONTROLS" % ["ON" if bool(sandbox.auto_spawn) else "OFF", session.bots.size()]
+		GameplayMode.BOSSFIGHT:
+			if is_bossfight_boss_level():
+				return "DEFEAT THE BOSS  /  %d HP" % bossfight_boss_health()
+			return "SWITCHES %d / 3  ->  %s" % [session.breakers, session.world.objective_destination if session.breakers == 3 else "SEARCH THE DISTRICT"]
 	return ""
 
 func timer_seconds() -> float:
 	return arcade_time_left if selected == GameplayMode.ARCADE else session.survival_time
+
+func is_bossfight_boss_level() -> bool:
+	return selected == GameplayMode.BOSSFIGHT and session.current_level % 4 == 0
+
+func bossfight_cycle_number() -> int:
+	return floori(float(maxi(1, session.current_level) - 1) / 4.0) + 1
+
+func bossfight_difficulty_tier() -> int:
+	return floori(float(maxi(1, session.current_level) - 1) / 4.0)
+
+func bossfight_boss_health() -> float:
+	var boss_number := maxi(1, floori(float(session.current_level) / 4.0))
+	return config.bossfight_base_boss_health + float(boss_number - 1) * config.bossfight_boss_health_growth
+
+func nextbot_speed_multiplier(default_value: float) -> float:
+	if selected != GameplayMode.BOSSFIGHT:
+		return default_value
+	return minf(config.bossfight_enemy_speed_cap, 1.0 + float(bossfight_difficulty_tier()) * config.bossfight_enemy_speed_growth)
+
+func enemy_pressure(default_value: float) -> float:
+	if selected != GameplayMode.BOSSFIGHT:
+		return default_value
+	return float(bossfight_difficulty_tier()) * 2.0
+
+func default_enemy_health(default_value: float = 100.0) -> float:
+	if selected != GameplayMode.BOSSFIGHT or is_bossfight_boss_level():
+		return default_value
+	return default_value + float(bossfight_difficulty_tier()) * config.bossfight_enemy_health_growth
+
+func bossfight_level_ready() -> void:
+	if selected != GameplayMode.BOSSFIGHT:
+		return
+	active_boss = null
+	bossfight_boss_pending = is_bossfight_boss_level()
+	session.spawn_timer = INF if bossfight_boss_pending else 0.9
+	if bossfight_boss_pending:
+		session.ui.toast("BOSS CYCLE %02d\n%d HP / ATTACK FACE MEANS DANGER" % [bossfight_cycle_number(), roundi(bossfight_boss_health())], 5.0)
+
+func _tick_bossfight() -> void:
+	if not bossfight_boss_pending or not is_bossfight_boss_level() or not session.world.navigation.synchronized:
+		return
+	var boss_number := maxi(1, floori(float(session.current_level) / 4.0))
+	active_boss = session._spawn_bot(Vector3.INF, {
+		"max_health": bossfight_boss_health(),
+		"respawn_delay": 9999.0,
+		"speed_multiplier": minf(1.38, 1.04 + float(boss_number - 1) * 0.045),
+		"face_scale": 2.05,
+		"boss": true,
+		"custom_face": BOSSFIGHT_IDLE_FACE,
+		"attack_face": BOSSFIGHT_ATTACK_FACE,
+	})
+	if active_boss == null:
+		return
+	bossfight_boss_pending = false
+	session.ui.toast("BOSS %02d ENTERS THE SUN RING\n%d HP" % [boss_number, roundi(bossfight_boss_health())], 4.0)
 
 func sandbox_action(action: String, value = null) -> void:
 	if selected != GameplayMode.SANDBOX:

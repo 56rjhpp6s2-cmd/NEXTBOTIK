@@ -1,6 +1,6 @@
 # BELOW / ZERO
 
-A first-person Nextbots horror-action game for Windows, built in Godot 4.5+ with GDScript. Choose **Arcade**, **Endless**, **PNG Mayhem** or **Sandbox**, then enter an abandoned underground complex or a gm_construct-style outdoor arena. Endless retains the objective-driven descent and generates a new modular labyrinth from Level 4 onward. Sandbox includes manual spawning plus configurable automatic spawning, batch size, interval and active-enemy limit.
+A first-person Nextbots horror-action game for Windows, built in Godot 4.5+ with GDScript. Choose **Arcade**, **Endless**, **PNG Mayhem**, **Sandbox** or **Bossfight**, then enter an abandoned underground complex, a gm_construct-style outdoor arena, or Bossfight's dedicated desert district. Endless retains the objective-driven descent and generates a new modular labyrinth from Level 4 onward. Sandbox includes manual spawning plus configurable automatic spawning, batch size, interval and active-enemy limit.
 
 You can fight back by throwing PNG images. Import your own transparent PNGs during a run, switch images with the mouse wheel, aim, and defeat enemies with five standard hits. Both maps retain their movement, chases, objectives, jumpscare and respawn systems.
 
@@ -12,7 +12,7 @@ Open `project.godot` in your installed Godot 4.5 or newer and press **F5**. Stop
 
 `PLAY.cmd` and `EDITOR.cmd` use the portable Godot executable in `tools/engine` or an installation on PATH. The launcher imports resources before starting and never downloads anything. An optional `GODOT_ENGINE` environment variable can select another installed executable.
 
-To send the game to a friend, use **`build/BELOW_ZERO_Friends.zip`**. It contains the game pack, all three bundled Nextbot photos, the selected PNG, a portable engine and Russian instructions. Extract the entire archive and run **`BELOW_ZERO/PLAY.cmd`**; no editor installation is needed. Both players should use the same archive. Run **`PACKAGE.cmd`** to rebuild it after changing the project.
+To send the game to a friend, use **`build/BELOW_ZERO_Friends.zip`**. It contains the game pack, all bundled Nextbot and Bossfight photos, the selected PNG, a portable engine and Russian instructions. Extract the entire archive and run **`BELOW_ZERO/PLAY.cmd`**; no editor installation is needed. Both players should use the same archive. Run **`PACKAGE.cmd`** to rebuild it after changing the project.
 
 Three bundled Nextbot appearances rotate during encounters: the original `assets/nextbot_face.jpg`, `assets/nextbot_faces/elena_finkelshteyn.jpg`, and `assets/nextbot_faces/5402324111498878359.jpg`. Each enemy uses its own photograph for the jumpscare, including over multiplayer.
 
@@ -36,6 +36,14 @@ Levels 1–3 preserve the selected authored map and reset its objectives on each
 Default room counts are 15 / 20 / 25 / 30 / 35 on Levels 4–8, then rise more slowly to a 55-room cap. Lighting falls from 0.80x on Level 4 to a playable 0.10x minimum on Level 10+, while functioning lights become rarer, fog and flicker increase and safe lighting remains around the entry, exits and refuges. Nextbot speed uses 1.10x through 1.70x multipliers on Levels 4–10, then approaches a configurable 2.00x ceiling with diminishing returns; the physical chase speed remains capped below the player's practical movement ceiling. Detection, search persistence, repathing and population pressure also rise.
 
 The HUD displays the current level, and the deepest reached level is saved. F3 includes the generation seed, room count, light/speed multipliers, navigation state and validation result. In a debug build, enable F3 and press **F6** to regenerate the current procedural level with a new reproducible seed. Generation and progression tuning lives in `resources/procedural_generation.tres` and is independent from the selected Explorer/Relentless/Nightmare difficulty.
+
+## Bossfight mode
+
+Bossfight uses its own original **Dust Quarter** map: a sun-baked competitive-FPS district with courtyards, market passages, palace routes, flanks, arches and multiple chase loops. It is visually inspired by desert Counter-Strike maps without copying Mirage geometry or assets. On each of the first three levels, three switches are selected from ten valid locations; activate all three and reach the Sun Gate. The same authored layout returns with new switch positions on the following level.
+
+Every fourth level loads the separate **Sun Ring**, a large open circular arena with spaced pillars that provide fair cover from the boss's telegraphed charge. The first boss has **4,000 HP**. Each later boss gains **500 HP**, while ordinary Nextbots gain health, speed and population pressure after every victory. Defeating the boss automatically begins the next three-sector cycle, so progression continues indefinitely.
+
+The supplied `assets/bosses/bossfight_idle.jpg` is the boss's normal billboard. During its charge and direct attack it switches to `bossfight_attack.jpg`; that aggressive image is also active when the boss catches the player. Both source photographs are bundled unchanged.
 
 ## Controls
 
@@ -90,6 +98,7 @@ Settings include sensitivity, brightness/minimum visibility, separate master/mus
 - `scripts/nextbot.gd`: Idle / Wander / Search / Chase / Attack, hearing, visibility and avoidance.
 - `scripts/world.gd`, `surface.gd`, `navigation.gd`: authored map plan, shared materials, collision, render batching and connected NavigationMesh.
 - `scripts/construct_world.gd`: outdoor Construct map, daylight, grass, pool, garages, darkroom and roof routes, using the shared gameplay and navigation systems.
+- `scripts/bossfight_world.gd`: Dust Quarter, randomized switch placement and the circular Sun Ring boss arena.
 - `scripts/procedural/`, `scenes/procedural/`: deterministic room placement, reusable room prefabs, procedural world rendering, validation and progression configuration.
 - `scripts/interactable.gd`: breakers, batteries, lockers and lift.
 - `scripts/audio.gd`: generated PCM, spatial effects, audio buses and adaptive chase score.
@@ -116,6 +125,7 @@ godot --headless --path . -- --combat-test
 godot --headless --path . -- --movement-test
 godot --headless --path . -- --procedural-test
 godot --headless --path . -- --modes-test
+godot --headless --path . -- --bossfight-test
 ```
 
 The engine integration suite checks navigation across both stairwells, reachability of all objectives, collision, movement, mouse look, unlimited sprint, bot detection and pursuit, billboard texture, audio buffers, pause/settings, contact death, jumpscare transition, respawn and victory. It exits nonzero on failure.

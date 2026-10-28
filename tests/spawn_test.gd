@@ -1,5 +1,6 @@
 extends RefCounted
-## Spawning + lever-policy regression coverage for the four game modes.
+## Spawning + lever-policy regression coverage for the original four modes;
+## Bossfight progression and spawning have a dedicated integration suite.
 ## Exercises fresh-world navigation synchronization (no explicit wait_ready),
 ## wave integrity, manual Sandbox spawning, mode switching and the
 ## mode-aware breaker/exit policy including the Blackout exception.

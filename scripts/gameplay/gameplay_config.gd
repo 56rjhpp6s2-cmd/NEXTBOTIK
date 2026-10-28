@@ -20,6 +20,15 @@ extends Resource
 @export var mayhem_speed_growth: float = 0.035
 @export var boss_health: float = 10000.0
 
+@export_group("Bossfight")
+@export var bossfight_base_boss_health: float = 4000.0
+@export var bossfight_boss_health_growth: float = 500.0
+@export var bossfight_enemy_health_growth: float = 25.0
+@export_range(0.0, 0.25, 0.005) var bossfight_enemy_speed_growth: float = 0.08
+@export_range(1.0, 3.0, 0.05) var bossfight_enemy_speed_cap: float = 1.65
+@export_range(1, 12, 1) var bossfight_starting_nextbots: int = 2
+@export_range(1, 16, 1) var bossfight_maximum_nextbots: int = 8
+
 @export_group("Sandbox")
 @export_range(0.5, 30.0, 0.5) var sandbox_auto_spawn_interval: float = 4.0
 @export_range(1, 32, 1) var sandbox_auto_spawn_limit: int = 12

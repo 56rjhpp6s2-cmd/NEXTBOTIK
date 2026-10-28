@@ -55,7 +55,7 @@ func _ready() -> void:
 	head_bob_intensity = clampf(head_bob_intensity, 0.0, 1.0)
 	brightness = clampf(brightness, 0.65, 1.35)
 	highest_level = maxi(1, highest_level)
-	selected_game_mode = clampi(selected_game_mode, 0, 3)
+	selected_game_mode = clampi(selected_game_mode, 0, 4)
 	if best.size() != 3:
 		best = [0.0, 0.0, 0.0]
 	if construct_best.size() != 3:
@@ -87,7 +87,7 @@ func automated_run() -> bool:
 	return not automated_tag().is_empty()
 
 func automated_tag() -> String:
-	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--modes-test", "--capture-construct", "--capture-combat", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
+	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--modes-test", "--bossfight-test", "--capture-construct", "--capture-combat", "--capture-bossfight", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
 		if flag in OS.get_cmdline_user_args():
 			return flag.trim_prefix("--")
 	return ""

@@ -42,8 +42,9 @@ func prompt(breakers: int) -> String:
 		"battery": return "[E] TAKE BATTERY  +45%"
 		"hide": return "[E] HIDE IN LOCKER"
 		"exit":
-			var action = "DESCEND THROUGH GATE" if title == "DESCENT GATE" else "CALL SERVICE LIFT"
-			var offline = "GATE OFFLINE" if title == "DESCENT GATE" else "LIFT OFFLINE"
+			var is_gate := title in ["DESCENT GATE", "SUN GATE"]
+			var action = "ENTER NEXT SECTOR" if title == "SUN GATE" else ("DESCEND THROUGH GATE" if is_gate else "CALL SERVICE LIFT")
+			var offline = "GATE OFFLINE" if is_gate else "LIFT OFFLINE"
 			return "[E] " + action if breakers == 3 else "%s  /  %d OF 3 BREAKERS" % [offline, breakers]
 	return ""
 

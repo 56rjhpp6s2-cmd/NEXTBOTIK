@@ -7,13 +7,13 @@ static func material(kind: String) -> StandardMaterial3D:
 	if cache.has(kind):
 		return cache[kind]
 	var m = StandardMaterial3D.new()
-	var colors = {"concrete": Color("737d7b"), "floor": Color("424d4e"), "ceiling": Color("343c3c"), "yellow": Color("aaa17c"), "carpet": Color("696c4f"), "metal": Color("34454c"), "rust": Color("6b4937"), "dark": Color("141c21"), "stripe": Color("c69c46"), "red": Color("9b3634"), "safe": Color("255b58"), "white": Color("c9d7cc"), "grass": Color("698b49"), "paving": Color("a4aca9"), "brick": Color("a17762"), "pool_tile": Color("729a9f"), "retaining": Color("87928d")}
+	var colors = {"concrete": Color("737d7b"), "floor": Color("424d4e"), "ceiling": Color("343c3c"), "yellow": Color("aaa17c"), "carpet": Color("696c4f"), "metal": Color("34454c"), "rust": Color("6b4937"), "dark": Color("141c21"), "stripe": Color("c69c46"), "red": Color("9b3634"), "safe": Color("255b58"), "white": Color("c9d7cc"), "grass": Color("698b49"), "paving": Color("a4aca9"), "brick": Color("a17762"), "pool_tile": Color("729a9f"), "retaining": Color("87928d"), "sand": Color("c8aa72"), "arena_sand": Color("ad714d"), "sandstone": Color("d5b679"), "arena_wall": Color("743e3b"), "plaster": Color("d8cbae"), "terracotta": Color("a96548"), "mosaic": Color("438c91"), "awning": Color("913b43"), "wood": Color("725139")}
 	m.albedo_color = colors.get(kind, Color.GRAY)
 	m.roughness = 0.87
 	if kind in ["metal", "rust", "dark"]:
 		m.metallic = 0.5
 		m.roughness = 0.55
-	if kind in ["concrete", "floor", "yellow", "carpet", "ceiling", "grass", "paving", "pool_tile", "retaining"]:
+	if kind in ["concrete", "floor", "yellow", "carpet", "ceiling", "grass", "paving", "pool_tile", "retaining", "sand", "arena_sand", "sandstone", "arena_wall", "plaster", "terracotta", "wood"]:
 		var noise = FastNoiseLite.new()
 		noise.seed = 52
 		noise.frequency = 0.065
@@ -21,7 +21,7 @@ static func material(kind: String) -> StandardMaterial3D:
 		tex.width = 256
 		tex.height = 256
 		tex.noise = noise
-		if kind in ["grass", "paving", "pool_tile", "retaining"]:
+		if kind in ["grass", "paving", "pool_tile", "retaining", "sand", "arena_sand", "sandstone", "arena_wall", "plaster", "terracotta", "wood"]:
 			var ramp = Gradient.new()
 			ramp.colors = PackedColorArray([Color(0.7, 0.7, 0.7), Color(0.97, 0.97, 0.97)])
 			tex.color_ramp = ramp

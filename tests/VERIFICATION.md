@@ -1,5 +1,15 @@
 # Verification status
 
+## Bossfight mode and dedicated maps (2026-10-28)
+
+- Added Bossfight as the fifth local mode. Levels 1–3 use the original Dust Quarter desert-FPS layout and deterministically reroll three switches from ten validated locations; Level 4 uses the separate 333-tile open Sun Ring. The cycle repeats indefinitely.
+- The first boss has exactly **4,000 HP** and every later boss gains **500 HP**. After each victory, regular Nextbots gain health, speed and active-population pressure. Boss defeat automatically advances to the following three-level sector cycle.
+- Preserved the supplied boss photographs byte-for-byte. SHA-256: idle `0a739ce5013dd47ef585793a2dda8bbf4e899821a4bc47c2c64ae8c5ba90bbc8`; attack `2076b12f8193b8f1034cead1379f8c24339b14e90595dba53e011bee4bd59eba`. The state machine switches to the attacking photograph during charge/direct attack and therefore uses it for a successful boss catch.
+- New full-cycle suite: **34 Bossfight checks** cover all three switch levels, objective navigation, randomized positions, automatic boss spawn, 4,000 HP, real `ATTACK`-state image switching, victory transition, stronger Level 5 enemies, repeated Level 8 arena and the 4,500-HP second boss.
+- Full local results after integration: **17 static**, **30 smoke**, **47 map**, **22 movement**, **317 procedural**, **70 mode/event**, **34 Bossfight**, **126 combat**, and **78 spawn** checks passed. Total engine checks: **724**, zero failures. ENet regression remained green at **26 host / 42 client** checks; Bossfight itself remains a local mode.
+- Rendered and inspected `bossfight_dust_quarter.png`, `bossfight_arena_idle.png` and `bossfight_arena_attack.png` using the regular OpenGL/ANGLE renderer. The two boss states, arena cover, HUD and warm environment render without missing assets.
+- Exported and headlessly booted `build/BELOW_ZERO.exe` (101,260,296 bytes). Rebuilt `build/BELOW_ZERO_Friends.zip` (81,295,251 bytes); its pack log confirms both boss textures and `bossfight_world.gd` are embedded.
+
 ## Third bundled Nextbot face (2026-10-28)
 
 - Copied `5402324111498878359.jpg` unchanged into `assets/nextbot_faces/`; source and bundled copy share SHA-256 `528395702258bc3c963bc48e5ffa4ebbb82e33f67359b51f7c01f6aafc3a9ba8`.

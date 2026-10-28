@@ -91,6 +91,9 @@ func _ready() -> void:
 	elif "--modes-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/modes_test.gd").new()
 		test_runner.run.call_deferred(self)
+	elif "--bossfight-test" in OS.get_cmdline_user_args():
+		test_runner = load("res://tests/bossfight_test.gd").new()
+		test_runner.run.call_deferred(self)
 	elif "--movement-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/movement_test.gd").new()
 		test_runner.run.call_deferred(self)
@@ -117,6 +120,8 @@ func _ready() -> void:
 		_capture_construct.call_deferred()
 	if "--capture-combat" in OS.get_cmdline_user_args():
 		_capture_combat.call_deferred()
+	if "--capture-bossfight" in OS.get_cmdline_user_args():
+		_capture_bossfight.call_deferred()
 	if "--capture-network" in OS.get_cmdline_user_args():
 		network_menu.open()
 		_capture_network.call_deferred()
@@ -300,6 +305,45 @@ func _capture_construct() -> void:
 	await _capture("construct")
 	get_tree().quit()
 
+func _capture_bossfight() -> void:
+	game_modes.select(GameModeManager.GameplayMode.BOSSFIGHT)
+	start_run(false, 1, 13001)
+	spawn_timer = 9999.0
+	await world.navigation.wait_ready()
+	_clear_bots()
+	ui.root.visible = false
+	menu_camera.global_position = Vector3(66, 32, 132)
+	menu_camera.look_at(Vector3(66, 0, 62))
+	menu_camera.make_current()
+	await get_tree().create_timer(0.8).timeout
+	await _capture("bossfight_dust_quarter")
+	ui.root.visible = true
+	await _transition_to_level(4, 44004, false)
+	for frame in range(240):
+		if is_instance_valid(game_modes.active_boss):
+			break
+		await get_tree().physics_frame
+	var boss := game_modes.active_boss
+	if is_instance_valid(boss):
+		boss.enabled = false
+		boss.global_position = Vector3(0, 0.1, 0)
+	player.reset_at(Vector3(0, 0.1, 18))
+	player.view.camera.make_current()
+	_look_at_point(Vector3(0, 2.0, 0))
+	await get_tree().create_timer(0.5).timeout
+	await _capture("bossfight_arena_idle")
+	if is_instance_valid(boss):
+		boss._change_state(NextbotEnemy.State.ATTACK)
+	await get_tree().process_frame
+	await _capture("bossfight_arena_attack")
+	get_tree().quit()
+
+func _look_at_point(point: Vector3) -> void:
+	var direction := point - player.view.camera.global_position
+	player.rotation.y = atan2(-direction.x, -direction.z)
+	player.view.pitch = atan2(direction.y, Vector2(direction.x, direction.z).length())
+	player.view.rotation.x = player.view.pitch
+
 func _capture_network() -> void:
 	await _capture("network_menu")
 	get_tree().quit()
@@ -326,6 +370,18 @@ func _load_procedural_world(level: int, seed_value: int) -> void:
 	generated.session = self
 	generated.process_mode = Node.PROCESS_MODE_PAUSABLE
 	world = generated
+	add_child(world)
+
+func _load_bossfight_world(level: int, seed_value: int) -> void:
+	if is_instance_valid(world):
+		remove_child(world)
+		world.queue_free()
+	var battlefield := BossfightWorld.new()
+	battlefield.configure(level, seed_value)
+	battlefield.name = "BossArena" if battlefield.arena_mode else "DustQuarter"
+	battlefield.session = self
+	battlefield.process_mode = Node.PROCESS_MODE_PAUSABLE
+	world = battlefield
 	add_child(world)
 
 func _select_map(index: int) -> void:
@@ -502,17 +558,22 @@ func start_run(force_new: bool = false, starting_level: int = 1, seed_value: int
 	events.end_event()
 	game_modes.before_start()
 	_clear_bots()
-	current_level = maxi(1, starting_level) if game_modes.selected == GameModeManager.GameplayMode.ENDLESS else 1
-	current_generation_seed = seed_value if current_level >= 4 else 0
+	var progression_mode := game_modes.selected in [GameModeManager.GameplayMode.ENDLESS, GameModeManager.GameplayMode.BOSSFIGHT]
+	current_level = maxi(1, starting_level) if progression_mode else 1
+	current_generation_seed = 0
 	regeneration_serial = 0
 	progression_root_seed = int(rng.randi()) & 0x7fffffff
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--proc-seed="):
 			progression_root_seed = int(argument.trim_prefix("--proc-seed=")) & 0x7fffffff
-	if current_level >= 4:
+	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
+		current_generation_seed = seed_value if seed_value != 0 else _seed_for_level(current_level)
+		_load_bossfight_world(current_level, current_generation_seed)
+	elif current_level >= 4:
+		current_generation_seed = seed_value
 		if not world is ProceduralLevelWorld or world.generation_seed != current_generation_seed or world.progression_level != current_level:
 			_load_procedural_world(current_level, current_generation_seed)
-	elif world is ProceduralLevelWorld:
+	elif world is ProceduralLevelWorld or world is BossfightWorld:
 		_load_world(Settings.level_index)
 	world.reset_items()
 	refresh_interactable_policy()
@@ -582,7 +643,7 @@ func return_to_menu() -> void:
 	transition_in_progress = false
 	current_level = 1
 	current_generation_seed = 0
-	if world is ProceduralLevelWorld:
+	if world is ProceduralLevelWorld or world is BossfightWorld:
 		_load_world(Settings.level_index)
 		player.position = world.spawns[0]
 		menu_camera.position = world.menu_view_position
@@ -695,14 +756,14 @@ func _spawn_bot(at: Vector3 = Vector3.INF, stats: Dictionary = {}) -> NextbotEne
 	bot.world = world
 	bot.player = player
 	var level_speed = nextbot_speed_multiplier()
-	var level_pressure = maxf(0.0, float(current_level - 3))
+	var level_pressure = game_modes.enemy_pressure(maxf(0.0, float(current_level - 3)))
 	bot.speed = [9.0, 11.4, 13.6][run_difficulty] * level_speed
 	bot.detection_range = [26.0, 34.0, 43.0][run_difficulty] * (1.0 + minf(0.45, level_pressure * 0.035))
 	bot.aggression = [0.8, 1.0, 1.25][run_difficulty] * (1.0 + minf(0.50, level_pressure * 0.04))
 	bot.repath_interval = maxf(0.105, 0.18 - level_pressure * 0.004)
 	bot.search_duration_scale = 1.0 + minf(0.65, level_pressure * 0.045)
 	bot.chase_speed_cap = 21.2
-	bot.max_health = maxf(1.0, stats.get("max_health", 100.0))
+	bot.max_health = maxf(1.0, stats.get("max_health", game_modes.default_enemy_health()))
 	bot.respawn_delay = maxf(0.05, stats.get("respawn_delay", 10.0))
 	bot.speed_multiplier = maxf(0.1, stats.get("speed_multiplier", 1.0))
 	if stats.has("speed_override"):
@@ -712,6 +773,7 @@ func _spawn_bot(at: Vector3 = Vector3.INF, stats: Dictionary = {}) -> NextbotEne
 	bot.attack_damage = maxf(0.0, float(stats.get("attack_damage", 100.0)))
 	bot.face_scale = clampf(float(stats.get("face_scale", 1.0)), 0.25, 3.0)
 	bot.custom_face = stats.get("custom_face", null)
+	bot.attack_face = stats.get("attack_face", null)
 	bot.is_boss = bool(stats.get("boss", false))
 	bot.event_spawned = bool(stats.get("event_spawned", false))
 	bot.event_tag = str(stats.get("event_tag", ""))
@@ -820,7 +882,8 @@ func _interact() -> void:
 			breakers += 1
 			events.breaker_activated()
 			Sound.spatial("breaker", world, focused_item.global_position)
-			ui.toast("%d / 3 BREAKERS RESTORED\n%s" % [breakers, world.objective_destination + " IS NOW ONLINE" if breakers == 3 else "THE NOISE WILL DRAW THEM HERE"], 4.0)
+			var objective_kind := "SWITCHES ACTIVATED" if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT else "BREAKERS RESTORED"
+			ui.toast("%d / 3 %s\n%s" % [breakers, objective_kind, world.objective_destination + " IS NOW ONLINE" if breakers == 3 else "THE NOISE WILL DRAW THEM HERE"], 4.0)
 			for bot in bots:
 				bot.hear(player.global_position, 4.0)
 			spawn_timer = minf(spawn_timer, 3.0)
@@ -830,7 +893,7 @@ func _interact() -> void:
 			elif breakers == 3:
 				advance_level()
 			else:
-				ui.toast("RESTORE ALL THREE BREAKERS FIRST.", 2.0)
+				ui.toast("ACTIVATE ALL THREE SWITCHES FIRST." if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT else "RESTORE ALL THREE BREAKERS FIRST.", 2.0)
 		"hide":
 			if hide_cooldown > 0:
 				ui.toast("CATCH YOUR BREATH BEFORE HIDING AGAIN.", 2.0)
@@ -917,7 +980,7 @@ func _win_run() -> void:
 	ui.show_result(true, survival_time, Settings.best_for_map(run_map_index, run_difficulty), new_record, world.escape_message, kill_count)
 
 func nextbot_speed_multiplier() -> float:
-	return progression_config.speed_for_level(current_level)
+	return game_modes.nextbot_speed_multiplier(progression_config.speed_for_level(current_level))
 
 func maximum_active_bots() -> int:
 	var base: int = [2, 4, 5][run_difficulty]
@@ -931,8 +994,9 @@ func refresh_interactable_policy() -> void:
 	if not is_instance_valid(world) or not is_instance_valid(game_modes) or not is_instance_valid(events):
 		return
 	var endless := game_modes.selected == GameModeManager.GameplayMode.ENDLESS
-	var needs_breakers := endless or events.active_event == "BLACKOUT"
-	world.apply_interactable_policy(needs_breakers, endless)
+	var bossfight_stage := game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT and not game_modes.is_bossfight_boss_level()
+	var needs_breakers := endless or bossfight_stage or events.active_event == "BLACKOUT"
+	world.apply_interactable_policy(needs_breakers, endless or bossfight_stage)
 
 func _seed_for_level(level: int, salt: int = 0) -> int:
 	var value = int(hash([progression_root_seed, level, salt])) & 0x7fffffff
@@ -965,11 +1029,16 @@ func _transition_to_level(next_level: int, seed_value: int, animate: bool = true
 	_clear_bots()
 	Sound.target_intensity = 0.0
 	if animate:
-		await ui.fade_to_black("DESCENDING\nLEVEL %02d" % next_level)
+		var transition_title := "DESCENDING"
+		if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
+			transition_title = "BOSS ARENA" if next_level % 4 == 0 else "NEXT DESERT SECTOR"
+		await ui.fade_to_black("%s\nLEVEL %02d" % [transition_title, next_level])
 	current_level = maxi(1, next_level)
-	current_generation_seed = seed_value if current_level >= 4 else 0
+	current_generation_seed = seed_value if current_level >= 4 or game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT else 0
 	var previous_layout_signature = world.layout_signature if world is ProceduralLevelWorld else ""
-	if current_level >= 4:
+	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
+		_load_bossfight_world(current_level, current_generation_seed)
+	elif current_level >= 4:
 		_load_procedural_world(current_level, current_generation_seed)
 		if not previous_layout_signature.is_empty() and world.layout_signature == previous_layout_signature:
 			current_generation_seed = (current_generation_seed + 65537) & 0x7fffffff
@@ -1029,6 +1098,8 @@ func complete_level_transition(spawn_enemies: bool = true, animate: bool = true)
 	mode = Mode.PLAYING
 	player.active = true
 	player.network_alive = true
+	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
+		game_modes.bossfight_level_ready()
 	for bot in staged_bots:
 		if is_instance_valid(bot):
 			bot.enabled = true
@@ -1036,7 +1107,10 @@ func complete_level_transition(spawn_enemies: bool = true, animate: bool = true)
 	if game_modes.selected == GameModeManager.GameplayMode.SANDBOX:
 		game_modes._capture_sandbox_lighting()
 		game_modes.apply_sandbox_lighting()
-	ui.toast("LEVEL %02d\nTHE WAY BACK IS GONE." % current_level, 4.0)
+	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
+		ui.toast("%s %02d\n%s" % ["BOSS ARENA" if game_modes.is_bossfight_boss_level() else "DESERT SECTOR", current_level, game_modes.objective_text()], 4.0)
+	else:
+		ui.toast("LEVEL %02d\nTHE WAY BACK IS GONE." % current_level, 4.0)
 
 func _record_run() -> void:
 	# Settings may be edited while paused; records always belong to the run difficulty.
