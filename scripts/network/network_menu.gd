@@ -80,6 +80,7 @@ func _button(text: String, at: Vector2, dimensions: Vector2, callback: Callable)
 
 func open() -> void:
 	panel.visible = true
+	status_label.text = "%s ONLINE • Host controls the shared map, seed and difficulty • Up to 8 players" % session.game_modes.mode_name()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	name_input.grab_focus()
 

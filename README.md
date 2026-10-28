@@ -4,7 +4,7 @@ A first-person Nextbots horror-action game for Windows, built in Godot 4.5+ with
 
 You can fight back by throwing PNG images. Import your own transparent PNGs during a run, switch images with the mouse wheel, aim, and defeat enemies with five standard hits. Both maps retain their movement, chases, objectives, jumpscare and respawn systems.
 
-Cooperative multiplayer supports up to eight players over LAN or Radmin VPN. Choose **СЕТЬ / RADMIN VPN** in the main menu: one player hosts, friends join using the host's VPN IP and the same UDP port (default **24577**). See [MULTIPLAYER.md](MULTIPLAYER.md) for Russian setup instructions, shared objectives, individual respawns and network testing.
+Cooperative multiplayer supports up to eight players over LAN or Radmin VPN in **Endless and Bossfight**. Select the mode first, then choose **СЕТЬ / RADMIN VPN**: one player hosts and friends join using the host's VPN IP and the same UDP port (default **24577**). See [MULTIPLAYER.md](MULTIPLAYER.md) for Russian setup instructions, shared objectives, individual respawns and network testing.
 
 ## Play
 
@@ -44,6 +44,8 @@ Bossfight uses its own original **Dust Quarter** map: a sun-baked competitive-FP
 Every fourth level loads the separate **Sun Ring**, a large open circular arena with spaced pillars that provide fair cover from the boss's telegraphed charge. The first boss has **4,000 HP**. Each later boss gains **500 HP**, while ordinary Nextbots gain health, speed and population pressure after every victory. Defeating the boss automatically begins the next three-sector cycle, so progression continues indefinitely.
 
 The supplied `assets/bosses/bossfight_idle.jpg` is the boss's normal billboard. During its charge and direct attack it switches to `bossfight_attack.jpg`; that aggressive image is also active when the boss catches the player. Both source photographs are bundled unchanged.
+
+Bossfight is fully cooperative: the host synchronizes the selected mode, level seed, randomized switches and every transition. On Sun Ring levels the host owns boss AI and damage; guests receive the same 4,000 + 500 HP scaling, boss bar, idle/attack photographs and post-victory transition. Late join uses the host's current Bossfight level and seed. All players must use the same current build because this data is part of network protocol 5.
 
 ## Controls
 
@@ -126,6 +128,7 @@ godot --headless --path . -- --movement-test
 godot --headless --path . -- --procedural-test
 godot --headless --path . -- --modes-test
 godot --headless --path . -- --bossfight-test
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/Test-Network.ps1 -Bossfight
 ```
 
 The engine integration suite checks navigation across both stairwells, reachability of all objectives, collision, movement, mouse look, unlimited sprint, bot detection and pursuit, billboard texture, audio buffers, pause/settings, contact death, jumpscare transition, respawn and victory. It exits nonzero on failure.

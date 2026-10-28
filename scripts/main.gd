@@ -88,6 +88,9 @@ func _ready() -> void:
 	if "--net-test-host" in OS.get_cmdline_user_args() or "--net-test-client" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/network_test.gd").new()
 		test_runner.run.call_deferred(self)
+	elif "--bossfight-net-test-host" in OS.get_cmdline_user_args() or "--bossfight-net-test-client" in OS.get_cmdline_user_args():
+		test_runner = load("res://tests/bossfight_network_test.gd").new()
+		test_runner.run.call_deferred(self)
 	elif "--modes-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/modes_test.gd").new()
 		test_runner.run.call_deferred(self)
@@ -153,19 +156,23 @@ func _setup_network() -> void:
 	network_menu.net = network
 	add_child(network_menu)
 
-func prepare_network_world(map_index: int, difficulty_index: int, progression_level: int = 1, seed_value: int = 0) -> void:
+func prepare_network_world(map_index: int, difficulty_index: int, progression_level: int = 1, seed_value: int = 0, gameplay_mode: int = GameModeManager.GameplayMode.ENDLESS) -> void:
 	projectiles.clear_projectiles()
 	damage_system.clear_effects()
 	_clear_bots()
+	game_modes.select(gameplay_mode, false)
 	var map_changed = Settings.level_index != map_index
 	if map_changed:
 		Settings.level_index = map_index
-	if progression_level >= 4:
+	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
+		_load_bossfight_world(progression_level, seed_value)
+	elif progression_level >= 4:
 		_load_procedural_world(progression_level, seed_value)
-	elif map_changed or world is ProceduralLevelWorld:
+	elif map_changed or world is ProceduralLevelWorld or world is BossfightWorld:
 		_load_world(map_index)
 	Settings.difficulty = clampi(difficulty_index, 0, 2)
 	ui.set_map_description(world)
+	ui.set_mode_description(game_modes)
 
 func network_spawn_local(state: Dictionary) -> void:
 	get_tree().paused = false
@@ -179,7 +186,6 @@ func network_spawn_local(state: Dictionary) -> void:
 	ui.result_button.disabled = false
 	ui.overlay.material.set_shader_parameter("darkness", 0.0)
 	ui.show_screen("game")
-	game_modes.select(GameModeManager.GameplayMode.ENDLESS)
 
 func apply_network_actor(state: Dictionary) -> void:
 	player.global_position = state.p
@@ -192,7 +198,7 @@ func apply_network_actor(state: Dictionary) -> void:
 	if player.hidden:
 		projectiles.suspend_input()
 
-func network_death_local(bot_id: int, face_variant: int = -1) -> void:
+func network_death_local(bot_id: int, face_variant: int = -1, bossfight_boss: bool = false) -> void:
 	if mode in [Mode.DYING, Mode.RESULT]:
 		return
 	mode = Mode.DYING
@@ -207,7 +213,8 @@ func network_death_local(bot_id: int, face_variant: int = -1) -> void:
 	_record_run()
 	var death_time = survival_time
 	Sound.jumpscare()
-	await ui.play_jumpscare(face_for_variant(face_variant) if face_variant >= 0 else _face_for_bot_id(bot_id))
+	var scare_face: Texture2D = GameModeManager.BOSSFIGHT_ATTACK_FACE if bossfight_boss else (face_for_variant(face_variant) if face_variant >= 0 else _face_for_bot_id(bot_id))
+	await ui.play_jumpscare(scare_face)
 	if mode != Mode.DYING or not network.active:
 		return
 	mode = Mode.RESULT
@@ -508,7 +515,10 @@ func _action(action: String) -> void:
 		"png_library": combat_hud.open_library()
 		"png_library_menu": combat_hud.open_library_from_menu()
 		"network":
-			game_modes.select(GameModeManager.GameplayMode.ENDLESS)
+			# Cooperative sessions support the established Endless rules and the
+			# dedicated Bossfight cycle. Other local-only modes fall back safely.
+			if game_modes.selected not in [GameModeManager.GameplayMode.ENDLESS, GameModeManager.GameplayMode.BOSSFIGHT]:
+				game_modes.select(GameModeManager.GameplayMode.ENDLESS)
 			ui.set_mode_description(game_modes)
 			network_menu.open()
 		"statistics": ui.show_statistics(statistics)
@@ -568,7 +578,8 @@ func start_run(force_new: bool = false, starting_level: int = 1, seed_value: int
 			progression_root_seed = int(argument.trim_prefix("--proc-seed=")) & 0x7fffffff
 	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
 		current_generation_seed = seed_value if seed_value != 0 else _seed_for_level(current_level)
-		_load_bossfight_world(current_level, current_generation_seed)
+		if not world is BossfightWorld or world.stage_level != current_level or world.stage_seed != current_generation_seed:
+			_load_bossfight_world(current_level, current_generation_seed)
 	elif current_level >= 4:
 		current_generation_seed = seed_value
 		if not world is ProceduralLevelWorld or world.generation_seed != current_generation_seed or world.progression_level != current_level:

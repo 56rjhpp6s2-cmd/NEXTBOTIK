@@ -1,7 +1,7 @@
 extends Node
 ## ENet listen-server cooperative session. Gameplay authority stays on peer 1.
 signal status_changed(message: String)
-const PROTOCOL: int = 4
+const PROTOCOL: int = 5
 const MAX_PLAYERS: int = 8
 const RemoteActor = preload("res://scripts/network/remote_player.gd")
 const NetworkImages = preload("res://scripts/network/network_images.gd")
@@ -28,6 +28,7 @@ var send_time: float = 0.0
 var connect_time: float = 0.0
 var original_map: int = 0
 var original_difficulty: int = 1
+var original_game_mode: int = GameModeManager.GameplayMode.ENDLESS
 var received_snapshots: int = 0
 var received_hits: int = 0
 var received_shots: int = 0
@@ -104,6 +105,7 @@ func join(address: String, listen_port: int = 24577, player_name: String = "PLAY
 func _remember_settings() -> void:
 	original_map = Settings.level_index
 	original_difficulty = Settings.difficulty
+	original_game_mode = int(session.game_modes.selected)
 
 func disconnect_session(reason: String = "", return_to_menu: bool = true) -> void:
 	if closing:
@@ -148,8 +150,10 @@ func disconnect_session(reason: String = "", return_to_menu: bool = true) -> voi
 	if was_active and return_to_menu:
 		session.return_to_menu()
 		Settings.difficulty = original_difficulty
+		session.game_modes.select(original_game_mode, false)
 		if Settings.level_index != original_map:
 			session._select_map(original_map)
+		session.ui.set_mode_description(session.game_modes)
 		Settings.save()
 		session.ui.show_screen("menu")
 	if not reason.is_empty():
@@ -236,7 +240,7 @@ func _welcome(round_id: int, data: Dictionary) -> void:
 	epoch = round_id
 	loading = true
 	game_running = false
-	session.prepare_network_world(int(data.map), int(data.difficulty), int(data.get("level", 1)), int(data.get("seed", 0)))
+	session.prepare_network_world(int(data.map), int(data.difficulty), int(data.get("level", 1)), int(data.get("seed", 0)), int(data.get("mode", GameModeManager.GameplayMode.ENDLESS)))
 	session.start_run(true, int(data.get("level", 1)), int(data.get("seed", 0)))
 	session.player.active = false
 	session.player.network_alive = false
@@ -435,7 +439,7 @@ func _snapshot(include_shots: bool = true) -> Dictionary:
 	var enemies: Array = []
 	for bot in session.bots:
 		if is_instance_valid(bot) and not bot.combat.dead:
-			enemies.append({"id": bot.bot_index, "p": bot.global_position, "hp": bot.combat.health.current_health, "max": bot.max_health, "face": bot.face_variant, "state": int(bot.state), "target": peer_for(bot.player)})
+			enemies.append({"id": bot.bot_index, "p": bot.global_position, "hp": bot.combat.health.current_health, "max": bot.max_health, "face": bot.face_variant, "state": int(bot.state), "target": peer_for(bot.player), "boss": bot.is_boss, "scale": bot.face_scale, "attack": bot.attack_visual_active})
 	var projectiles: Array = []
 	if include_shots:
 		for projectile in shots.values():
@@ -445,7 +449,7 @@ func _snapshot(include_shots: bool = true) -> Dictionary:
 	for i in range(session.world.interactables.size()):
 		if session.world.interactables[i].used:
 			used.append(i)
-	return {"time": session.survival_time, "breakers": session.breakers, "level": session.current_level, "seed": session.current_generation_seed, "players": actors, "bots": enemies, "shots": projectiles, "used": used, "refuges": session.world.refuge_charge.duplicate(), "running": game_running}
+	return {"time": session.survival_time, "breakers": session.breakers, "level": session.current_level, "seed": session.current_generation_seed, "mode": int(session.game_modes.selected), "players": actors, "bots": enemies, "shots": projectiles, "used": used, "refuges": session.world.refuge_charge.duplicate(), "running": game_running}
 
 @rpc("authority", "call_remote", "unreliable_ordered", 2)
 func _world_state(round_id: int, packet: PackedByteArray) -> void:
@@ -486,16 +490,26 @@ func _apply_snapshot(data: Dictionary) -> void:
 		var id = int(state.id)
 		present[id] = true
 		if not replicas.has(id) or not is_instance_valid(replicas[id]):
-			var bot = session._spawn_bot(state.p, {"max_health": float(state.max), "network_id": id, "face_variant": int(state.face)})
+			var boss := bool(state.get("boss", false))
+			var stats := {"max_health": float(state.max), "network_id": id, "face_variant": int(state.face), "boss": boss, "face_scale": float(state.get("scale", 1.0))}
+			if boss and session.game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
+				stats["custom_face"] = GameModeManager.BOSSFIGHT_IDLE_FACE
+				stats["attack_face"] = GameModeManager.BOSSFIGHT_ATTACK_FACE
+			var bot = session._spawn_bot(state.p, stats)
 			replicas[id] = bot
 		var enemy = replicas[id]
 		bot_targets[id] = state.p
 		enemy.state = int(state.state)
 		enemy.network_target = int(state.target)
 		enemy.combat.sync_network_health(float(state.hp), float(state.max))
+		enemy._set_attack_visual(bool(state.get("attack", false)))
+		if enemy.is_boss:
+			session.game_modes.active_boss = enemy
 	for id in replicas.keys():
 		if not present.has(id):
 			var enemy = replicas[id]
+			if enemy == session.game_modes.active_boss:
+				session.game_modes.active_boss = null
 			if is_instance_valid(enemy) and not enemy.combat.dead:
 				enemy.combat.sync_network_health(0.0, enemy.max_health)
 			replicas.erase(id)
@@ -711,16 +725,18 @@ func catch_peer(id: int, bot_id: int) -> void:
 		session.network_death_local(bot_id)
 	else:
 		var face_variant: int = -1
+		var bossfight_boss := false
 		for bot in session.bots:
 			if is_instance_valid(bot) and bot.bot_index == bot_id:
 				face_variant = bot.face_variant
+				bossfight_boss = bot.is_boss and session.game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT
 				break
-		_caught.rpc_id(id, epoch, bot_id, face_variant)
+		_caught.rpc_id(id, epoch, bot_id, face_variant, bossfight_boss)
 
 @rpc("authority", "call_remote", "reliable", 0)
-func _caught(round_id: int, bot_id: int, face_variant: int) -> void:
+func _caught(round_id: int, bot_id: int, face_variant: int, bossfight_boss: bool) -> void:
 	if active and round_id == epoch:
-		session.network_death_local(bot_id, face_variant)
+		session.network_death_local(bot_id, face_variant, bossfight_boss)
 
 func respawn_local() -> void:
 	if not active:
@@ -788,7 +804,8 @@ func _server_interact(id: int, item_index: int) -> void:
 		for bot in session.bots:
 			bot.hear(state.p, 4.0, actor_for(id))
 		_item.rpc(epoch, item_index, session.breakers)
-		session.ui.toast("%d / 3 BREAKERS RESTORED" % session.breakers, 3.0)
+		var objective_name := "SWITCHES ACTIVATED" if session.game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT else "BREAKERS RESTORED"
+		session.ui.toast("%d / 3 %s" % [session.breakers, objective_name], 3.0)
 		Sound.spatial("breaker", session.damage_system, item.global_position)
 	elif item.kind == "battery" and state.battery < 98.0:
 		state.battery = minf(100, state.battery + 45)
@@ -796,7 +813,7 @@ func _server_interact(id: int, item_index: int) -> void:
 		_apply_actor(id, state, "correction")
 		_actor.rpc(epoch, id, state, "correction")
 		_item.rpc(epoch, item_index, session.breakers)
-	elif item.kind == "exit" and session.breakers == 3:
+	elif item.kind == "exit" and session.breakers == 3 and session.game_modes.can_advance_level():
 		advance_level()
 	elif item.kind == "hide" and state.hide_cooldown <= 0:
 		for other in peers.values():
@@ -838,7 +855,8 @@ func _item(round_id: int, index: int, count: int) -> void:
 		Sound.spatial("breaker" if item.kind == "breaker" else "battery", session.damage_system, item.global_position, -12.0)
 	session.breakers = count
 	if item.kind == "breaker":
-		session.ui.toast("%d / 3 BREAKERS RESTORED" % count, 3.0)
+		var objective_name := "SWITCHES ACTIVATED" if session.game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT else "BREAKERS RESTORED"
+		session.ui.toast("%d / 3 %s" % [count, objective_name], 3.0)
 
 func on_step(loudness: float) -> void:
 	if is_host():
@@ -1005,8 +1023,8 @@ func _restart(round_id: int, map_index: int, difficulty_index: int, data: Dictio
 	predicted.clear()
 	replicas.clear()
 	bot_targets.clear()
-	session.prepare_network_world(map_index, difficulty_index)
-	session.start_run(true)
+	session.prepare_network_world(map_index, difficulty_index, int(data.get("level", 1)), int(data.get("seed", 0)), int(data.get("mode", GameModeManager.GameplayMode.ENDLESS)))
+	session.start_run(true, int(data.get("level", 1)), int(data.get("seed", 0)))
 	game_running = true
 	_apply_snapshot(data)
 	if peers.has(local_id()):

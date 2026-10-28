@@ -33,6 +33,7 @@ This file is the durable implementation checklist for the master overhaul. Check
 - [x] Live Sandbox controls and selected-PNG custom enemy spawning.
 - [x] Reliable automatic spawning in Arcade, Endless and Mayhem; configurable Sandbox auto-spawn toggle, interval, batch and cap.
 - [x] Original Dust Quarter objective map, randomized switches, Sun Ring arena, escalating 4,000 + 500 HP bosses and two-state supplied boss artwork.
+- [x] Authoritative Bossfight co-op: mode/seed handoff, shared switches, synchronized level cycle, boss HP/art/attacks and post-victory transition for up to eight players.
 - [x] Reusable explosive, freezing, piercing, ricochet, critical and multishot projectile modifiers.
 - [x] Static and Godot engine tests for the new architecture.
 
@@ -42,7 +43,7 @@ This file is the durable implementation checklist for the master overhaul. Check
 - [ ] Persistent named custom-Nextbot editor profiles and chase-music selection.
 - [ ] Dedicated handcrafted third level (the existing project currently contains two authored maps).
 - [ ] Rich event objectives/power-panel placement and additional special-enemy art/audio content.
-- [ ] Full multiplayer authority/synchronization for every new mode and event (new modes start local-only).
+- [ ] Multiplayer authority/synchronization for Arcade, PNG Mayhem, Sandbox and random events (Endless and Bossfight are online).
 - [ ] Manual native file-dialog, audio mix, controller-feel and rendered UI review.
 - [ ] Sustained representative-load frame-time benchmark on a mid-range Windows PC.
 - [ ] Godot integration, restart/leak, Windows export and CI verification after all overhaul phases.

@@ -73,10 +73,11 @@ func setup(owner_session, tuning: GameplayConfig, stats: StatisticsManager) -> v
 	sandbox.auto_spawn_interval = config.sandbox_auto_spawn_interval
 	sandbox.auto_spawn_limit = config.sandbox_auto_spawn_limit
 
-func select(index: int) -> void:
+func select(index: int, persist: bool = true) -> void:
 	selected = clampi(index, 0, 4)
-	Settings.selected_game_mode = int(selected)
-	Settings.save()
+	if persist:
+		Settings.selected_game_mode = int(selected)
+		Settings.save()
 
 func mode_name() -> String:
 	return NAMES[int(selected)]

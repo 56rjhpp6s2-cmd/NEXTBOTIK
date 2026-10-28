@@ -2,7 +2,8 @@ param(
     [string]$EnginePath,
     [ValidateRange(1024, 65535)][int]$Port = 24621,
     [ValidateRange(30, 300)][int]$TimeoutSeconds = 110,
-    [switch]$CaptureClient
+    [switch]$CaptureClient,
+    [switch]$Bossfight
 )
 # Uses two real ENet peers over loopback; never downloads an engine.
 $ErrorActionPreference = 'Stop'
@@ -12,10 +13,13 @@ $processes = @()
 try {
     $EnginePath = Find-GameEngine $EnginePath
     $runId = [guid]::NewGuid().ToString('N').Substring(0, 8)
+    $suite = if ($Bossfight) { 'bossfight-net-test' } else { 'net-test' }
+    $logPrefix = if ($Bossfight) { 'engine-net-bossfight' } else { 'engine-net' }
+    $resultPrefix = if ($Bossfight) { 'BOSSFIGHT NETWORK' } else { 'NETWORK' }
     $logs = @{}
     foreach ($role in @('host', 'client')) {
-        $logs[$role] = Join-Path $projectDirectory "tests\engine-net-$role.log"
-        $arguments = @('--headless', '--path', ('"' + $projectDirectory + '"'), '--max-fps', '60', '--quit-after', '6000', '--log-file', ('"' + $logs[$role] + '"'), '--', "--net-test-$role", "--net-run=$runId", "--net-port=$Port")
+        $logs[$role] = Join-Path $projectDirectory "tests\$logPrefix-$role.log"
+        $arguments = @('--headless', '--path', ('"' + $projectDirectory + '"'), '--max-fps', '60', '--quit-after', '6000', '--log-file', ('"' + $logs[$role] + '"'), '--', "--$suite-$role", "--net-run=$runId", "--net-port=$Port")
         if ($CaptureClient -and $role -eq 'client') {
             $arguments = @('--position', '-4000,-4000', '--resolution', '1280x720') + @($arguments | Where-Object { $_ -ne '--headless' }) + @('--capture-network-client')
         }
@@ -28,7 +32,7 @@ try {
     }
     foreach ($role in @('host', 'client')) {
         $content = Get-Content -LiteralPath $logs[$role] -Raw -Encoding UTF8
-        $resultPattern = 'NETWORK ' + $role.ToUpperInvariant() + ' TEST: \d+ checks, 0 failures'
+        $resultPattern = $resultPrefix + ' ' + $role.ToUpperInvariant() + ' TEST: \d+ checks, 0 failures'
         $unexpectedErrors = @($content -split '\r?\n' | Where-Object { $_ -match '^ERROR:' -and $_ -notmatch '^ERROR: Failed to read the root certificate store\.$' })
         if ($content -notmatch $resultPattern -or $content -match 'SCRIPT ERROR|Parse Error|FAIL:|Failed to load script|above the MTU' -or $unexpectedErrors.Count -gt 0) {
             Write-Host $content
