@@ -1,7 +1,7 @@
 # Nextbot face
 
 The supplied image is present as `nextbot_face.jpg`. Both maps load this image for the Nextbot and jumpscare.
-The additional supplied photograph is preserved as `nextbot_faces/elena_finkelshteyn.jpg`. Enemies alternate between both photos; the first enemy in a new run uses the added photograph. Each photo fills the jumpscare only when its own enemy catches the player. The host sends the chosen face variant to multiplayer clients.
+The additional supplied photographs are preserved as `nextbot_faces/elena_finkelshteyn.jpg` and `nextbot_faces/5402324111498878359.jpg`. Enemies rotate through all three bundled photos; the first enemy in a new run uses the Elena photograph and the second uses `5402324111498878359.jpg`. Each photo fills the jumpscare only when its own enemy catches the player. The host sends the chosen face variant to multiplayer clients.
 `fallback_face.svg` is an original face made for this project, used if the supplied file is removed or cannot be decoded.
 
 To use your original image, put it here as `nextbot_face.png`, `nextbot_face.jpg`, `nextbot_face.jpeg`, `nextbot_face.webp`, `nextbot_face.bmp`, or `nextbot_face.svg`. Restart the game. PNG takes priority if more than one file exists.

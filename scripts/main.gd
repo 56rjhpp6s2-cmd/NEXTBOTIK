@@ -1,6 +1,10 @@
 extends Node3D
 ## Run coordinator. Owns progression; movement, rendering, AI, audio and UI stay separate.
 enum Mode { MENU, PLAYING, PAUSED, DYING, RESULT, TRANSITION }
+const EXTRA_FACE_PATHS := [
+	"res://assets/nextbot_faces/elena_finkelshteyn.jpg",
+	"res://assets/nextbot_faces/5402324111498878359.jpg",
+]
 var mode: Mode = Mode.MENU
 var world: LevelWorld
 var player: PlayerController
@@ -361,20 +365,24 @@ func _load_face() -> void:
 func _load_extra_faces() -> void:
 	face_textures.clear()
 	face_textures.append(face_texture)
-	var path = "res://assets/nextbot_faces/elena_finkelshteyn.jpg"
+	for path in EXTRA_FACE_PATHS:
+		var texture := _load_extra_face(path)
+		if texture != null:
+			face_textures.append(texture)
+			print("NEXTBOT FACE: added image ", face_textures.size(), " ", path)
+		else:
+			push_warning("Bundled Nextbot face is missing: " + path)
+
+func _load_extra_face(path: String) -> Texture2D:
 	if ResourceLoader.exists(path):
 		var resource = load(path)
 		if resource is Texture2D:
-			face_textures.append(resource)
-			print("NEXTBOT FACE: added second image ", path)
-			return
+			return resource
 	if FileAccess.file_exists(path):
 		var image = Image.load_from_file(ProjectSettings.globalize_path(path))
 		if image != null and not image.is_empty():
-			face_textures.append(ImageTexture.create_from_image(image))
-			print("NEXTBOT FACE: added second image ", path)
-			return
-	push_warning("Second Nextbot face is missing: " + path)
+			return ImageTexture.create_from_image(image)
+	return null
 
 func face_for_variant(index: int) -> Texture2D:
 	return face_textures[posmod(index, face_textures.size())] if not face_textures.is_empty() else face_texture

@@ -70,7 +70,7 @@ func run(game) -> void:
 	await frames(game, 8)
 	bot.enabled = false
 	other.enabled = false
-	check(bot.face.texture == game.face_textures[1] and other.face.texture == game.face_texture, "New and original enemy photos alternate in one run")
+	check(bot.face.texture == game.face_textures[1] and other.face.texture == game.face_textures[2], "Bundled enemy photos rotate independently in one run")
 	check(bot.combat.health.current_health == 100 and bot.combat.health.max_health == 100, "Nextbot begins with 100/100 HP")
 	check(other.combat.health.current_health == 160, "Individual Nextbot maximum HP is configurable")
 	check(not bot.combat.health.regeneration_enabled, "Health regeneration is disabled by default")

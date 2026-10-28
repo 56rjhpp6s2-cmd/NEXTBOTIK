@@ -159,6 +159,10 @@ class ProjectChecks(unittest.TestCase):
         data = (ROOT / "assets/nextbot_faces/elena_finkelshteyn.jpg").read_bytes()
         self.assertEqual(hashlib.sha256(data).hexdigest(), "05d1f97ab2741a06b081e028e8de083f00949753f979ab0802ef82a92d1fc3f6")
 
+    def test_latest_nextbot_photo_is_preserved(self):
+        data = (ROOT / "assets/nextbot_faces/5402324111498878359.jpg").read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(), "528395702258bc3c963bc48e5ffa4ebbb82e33f67359b51f7c01f6aafc3a9ba8")
+
     def test_no_machine_specific_paths(self):
         paths = [*ROOT.glob("scripts/**/*.gd"), *ROOT.glob("tools/*.ps1"), *ROOT.glob("*.cmd")]
         for path in paths:

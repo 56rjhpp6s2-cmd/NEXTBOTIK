@@ -77,7 +77,7 @@ func run(game) -> void:
 		await game.get_tree().physics_frame
 	check(bot.speed > game.player.walk_speed and bot.agent.max_speed > bot.speed * 1.32, "Nextbot pursuit outruns walking and avoidance allows late-run speed")
 	check(bot.state == NextbotEnemy.State.CHASE, "Nextbot detects player down corridor")
-	check(game.face_textures.size() == 2 and bot.face.texture == game.face_textures[1] and bot.face.billboard != 0, "First Nextbot displays the added camera-facing photo")
+	check(game.face_textures.size() == 3 and bot.face.texture == game.face_textures[1] and bot.face.billboard != 0, "All three faces load and the first Nextbot displays its camera-facing photo")
 	var initial_distance = bot.global_position.distance_to(game.player.global_position)
 	for i in range(22):
 		await game.get_tree().physics_frame

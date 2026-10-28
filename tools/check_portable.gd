@@ -26,7 +26,7 @@ func _run() -> void:
 	await game.world.navigation.wait_ready()
 	var images = game.png_images
 	check(game.face_texture.resource_path == "res://assets/nextbot_face.jpg", "Pack uses the current enemy face")
-	check(game.face_textures.size() == 2 and game.face_textures[1].get_width() > 900, "Pack loads both Nextbot faces, including the added photo")
+	check(game.face_textures.size() == 3 and game.face_textures[1].get_width() > 900 and game.face_textures[2].get_height() > 900, "Pack loads all three bundled Nextbot faces")
 	check(game.player.sprint_speed > 10.0 and game.player.has_method("_start_slide") and game.player.has_method("_can_stand"), "Pack includes the advanced movement controller")
 	var has_stamina := false
 	for property in game.player.get_property_list():
@@ -66,8 +66,9 @@ func _run() -> void:
 	await physics_frame
 	var first_bot = game._spawn_bot(game.world.spawns[0] + Vector3(6, 0, 6))
 	var second_bot = game._spawn_bot(game.world.spawns[0] + Vector3(12, 0, 6))
+	var third_bot = game._spawn_bot(game.world.spawns[0] + Vector3(18, 0, 6))
 	check(is_equal_approx(first_bot.speed, 11.4) and first_bot.agent.max_speed > first_bot.speed * 1.32, "Packed Nextbots use the faster chase and avoidance speed")
-	check(first_bot.face.texture == game.face_textures[1] and second_bot.face.texture == game.face_texture, "Packed game alternates the new and original enemy appearances")
+	check(first_bot.face.texture == game.face_textures[1] and second_bot.face.texture == game.face_textures[2] and third_bot.face.texture == game.face_texture, "Packed game rotates through both added photos and the original appearance")
 	var shot = game.projectiles.fire()
 	check(shot != null and shot.visual.texture != null, "Packed game starts and throws the bundled PNG")
 	images.select_filename("BZ_star.png")

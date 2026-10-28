@@ -97,9 +97,9 @@ func host_test() -> void:
 		return
 	check(game.network.avatars.has(id), "Server creates a visible remote player")
 	teleport(id, Vector3(60, 0.1, 84))
-	var bot = game._spawn_bot(Vector3(60, 0.1, 96), {"respawn_delay": 0.6})
+	var bot = game._spawn_bot(Vector3(60, 0.1, 96), {"respawn_delay": 0.6, "face_variant": 2})
 	await frames(6)
-	check(bot.face.texture == game.face_textures[1], "Server spawns the added face as its first enemy")
+	check(bot.face.texture == game.face_textures[2], "Server spawns the newly bundled third face")
 	bot.enabled = false
 	bot._sense()
 	check(bot.player == game.network.avatars[id] and bot.state == NextbotEnemy.State.CHASE, "Host AI detects the remote player rather than only the host")
@@ -141,7 +141,7 @@ func host_test() -> void:
 	check(game.breakers == 1 and breaker.used, "Client interaction activates a shared server breaker")
 	teleport(id, Vector3(60, 0.1, 84))
 	await frames(8)
-	var catcher = game._spawn_bot(Vector3(60, 0.1, 84.4), {"face_variant": 1})
+	var catcher = game._spawn_bot(Vector3(60, 0.1, 84.4), {"face_variant": 2})
 	write_state("host", "death", {"face": catcher.face_variant})
 	await wait_stage("client", "respawned")
 	check(game.network.peers[id].alive and game.network.avatars[id].network_alive, "Client can respawn independently after a bot catch")
@@ -224,7 +224,7 @@ func client_test() -> void:
 			break
 		await game.get_tree().physics_frame
 	check(game.network.replicas.has(bot_id), "Server Nextbot appears on client")
-	check(game.network.replicas.has(bot_id) and game.network.replicas[bot_id].face.texture == game.face_textures[1], "Client sees the same added photo as the host")
+	check(game.network.replicas.has(bot_id) and game.network.replicas[bot_id].face.texture == game.face_textures[2], "Client sees the same newly bundled photo as the host")
 	var before_move: Vector3 = game.player.global_position
 	Input.action_press("right")
 	await frames(12)

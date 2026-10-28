@@ -12,9 +12,9 @@ Open `project.godot` in your installed Godot 4.5 or newer and press **F5**. Stop
 
 `PLAY.cmd` and `EDITOR.cmd` use the portable Godot executable in `tools/engine` or an installation on PATH. The launcher imports resources before starting and never downloads anything. An optional `GODOT_ENGINE` environment variable can select another installed executable.
 
-To send the game to a friend, use **`build/BELOW_ZERO_Friends.zip`**. It contains the game pack, both Nextbot photos, the selected PNG, a portable engine and Russian instructions. Extract the entire archive and run **`BELOW_ZERO/PLAY.cmd`**; no editor installation is needed. Both players should use the same archive. Run **`PACKAGE.cmd`** to rebuild it after changing the project.
+To send the game to a friend, use **`build/BELOW_ZERO_Friends.zip`**. It contains the game pack, all three bundled Nextbot photos, the selected PNG, a portable engine and Russian instructions. Extract the entire archive and run **`BELOW_ZERO/PLAY.cmd`**; no editor installation is needed. Both players should use the same archive. Run **`PACKAGE.cmd`** to rebuild it after changing the project.
 
-The two Nextbot appearances alternate during encounters. The first uses the newly supplied `assets/nextbot_faces/elena_finkelshteyn.jpg`; the original `assets/nextbot_face.jpg` remains the second. Each enemy uses its own photograph for the jumpscare, including over multiplayer.
+Three bundled Nextbot appearances rotate during encounters: the original `assets/nextbot_face.jpg`, `assets/nextbot_faces/elena_finkelshteyn.jpg`, and `assets/nextbot_faces/5402324111498878359.jpg`. Each enemy uses its own photograph for the jumpscare, including over multiplayer.
 
 **`CLEAN_PROJECT.cmd`** removes old download archives, generated test files/logs/captures and temporary package checks. It keeps source, game assets, the working engine, editor import cache and the current friend archive. The unrelated terminal snake files are archived under `extras` before removing their loose copies. Close game/tests/build processes first. Preview with `powershell -NoProfile -File tools/Clean-Project.ps1 -WhatIf`.
 

@@ -1,5 +1,13 @@
 # Verification status
 
+## Third bundled Nextbot face (2026-10-28)
+
+- Copied `5402324111498878359.jpg` unchanged into `assets/nextbot_faces/`; source and bundled copy share SHA-256 `528395702258bc3c963bc48e5ffa4ebbb82e33f67359b51f7c01f6aafc3a9ba8`.
+- Added it as the third deterministic face variant. Normal spawning rotates through all three bundled photos, each enemy retains its assigned face when respawned, and the same variant drives its billboard and jumpscare.
+- Local results after the change: **16 static**, **30 smoke**, **47 map**, **22 movement**, **317 procedural**, **70 mode/event**, **126 combat**, and **78 spawn** checks passed with no failures. The ENet regression explicitly used the new face for snapshot replication and the client jumpscare; **26 host** and **42 client** checks passed.
+- Re-exported and headlessly booted `build/BELOW_ZERO.exe` (99,165,976 bytes). Its startup log confirms all three face resources load from the packed build.
+- Rebuilt `build/BELOW_ZERO_Friends.zip` (79,245,156 bytes); the pack export log confirms the imported third-face texture is embedded in its PCK.
+
 ## Spawn reliability and mode-aware levers (2026-10-27)
 
 - Root cause fixed: `LevelNavigation.synchronized` was only flipped true inside `wait_ready()`, which only the Endless level-transition path awaited. A freshly loaded Arcade/Mayhem/Sandbox/Endless world (startup, map select, round rollover, mode switch) left the flag false forever, so the standard spawner, Mayhem wave logic and Sandbox auto-spawn all gate on it and never fired. `Navigation.build()` now starts a background `wait_ready()` via `_ensure_synchronized()` so the flag is honest for every caller, with a null-tree guard so a world freed mid-poll returns cleanly. Verified with a fresh-world probe: 5 Arcade launches and 5 Mayhem launches each synchronise and spawn without any explicit `await wait_ready()`.
