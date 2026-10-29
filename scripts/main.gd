@@ -324,6 +324,11 @@ func _capture_bossfight() -> void:
 	menu_camera.make_current()
 	await get_tree().create_timer(0.8).timeout
 	await _capture("bossfight_dust_quarter")
+	player.reset_at(Vector3(66, 0.1, 114))
+	player.view.camera.make_current()
+	_look_at_point(Vector3(66, 2.0, 63))
+	await get_tree().create_timer(0.35).timeout
+	await _capture("bossfight_dust_quarter_street")
 	ui.root.visible = true
 	await _transition_to_level(4, 44004, false)
 	for frame in range(240):

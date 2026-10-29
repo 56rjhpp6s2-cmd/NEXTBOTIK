@@ -7,23 +7,24 @@ static func material(kind: String) -> StandardMaterial3D:
 	if cache.has(kind):
 		return cache[kind]
 	var m = StandardMaterial3D.new()
-	var colors = {"concrete": Color("737d7b"), "floor": Color("424d4e"), "ceiling": Color("343c3c"), "yellow": Color("aaa17c"), "carpet": Color("696c4f"), "metal": Color("34454c"), "rust": Color("6b4937"), "dark": Color("141c21"), "stripe": Color("c69c46"), "red": Color("9b3634"), "safe": Color("255b58"), "white": Color("c9d7cc"), "grass": Color("698b49"), "paving": Color("a4aca9"), "brick": Color("a17762"), "pool_tile": Color("729a9f"), "retaining": Color("87928d"), "sand": Color("c8aa72"), "arena_sand": Color("ad714d"), "sandstone": Color("d5b679"), "arena_wall": Color("743e3b"), "plaster": Color("d8cbae"), "terracotta": Color("a96548"), "mosaic": Color("438c91"), "awning": Color("913b43"), "wood": Color("725139")}
+	var colors = {"concrete": Color("737d7b"), "floor": Color("424d4e"), "ceiling": Color("343c3c"), "yellow": Color("aaa17c"), "carpet": Color("696c4f"), "metal": Color("34454c"), "rust": Color("6b4937"), "dark": Color("141c21"), "stripe": Color("c69c46"), "red": Color("9b3634"), "safe": Color("255b58"), "white": Color("c9d7cc"), "grass": Color("698b49"), "paving": Color("8f8a79"), "brick": Color("a17762"), "pool_tile": Color("729a9f"), "retaining": Color("87928d"), "sand": Color("b99561"), "arena_sand": Color("ad714d"), "sandstone": Color("bd955d"), "arena_wall": Color("743e3b"), "plaster": Color("d8cbae"), "terracotta": Color("92503e"), "mosaic": Color("438c91"), "awning": Color("8f3543"), "wood": Color("62442f"), "dark_wood": Color("382a25"), "ochre_stucco": Color("b87842"), "blue_stucco": Color("527f89"), "rose_stucco": Color("9b5d58"), "cream_stucco": Color("c7b389"), "stone_trim": Color("8f7655"), "courtyard_tile": Color("4e8d8a"), "roof_tile": Color("577b78"), "foliage": Color("4d7045"), "window": Color("263c43"), "sign_back": Color("4a352c")}
 	m.albedo_color = colors.get(kind, Color.GRAY)
 	m.roughness = 0.87
-	if kind in ["metal", "rust", "dark"]:
+	if kind in ["metal", "rust", "dark", "window"]:
 		m.metallic = 0.5
 		m.roughness = 0.55
-	if kind in ["concrete", "floor", "yellow", "carpet", "ceiling", "grass", "paving", "pool_tile", "retaining", "sand", "arena_sand", "sandstone", "arena_wall", "plaster", "terracotta", "wood"]:
+	if kind in ["concrete", "floor", "yellow", "carpet", "ceiling", "grass", "paving", "pool_tile", "retaining", "sand", "arena_sand", "sandstone", "arena_wall", "plaster", "terracotta", "wood", "dark_wood", "ochre_stucco", "blue_stucco", "rose_stucco", "cream_stucco", "stone_trim", "courtyard_tile", "roof_tile", "foliage"]:
+		var subtle_texture := kind in ["sandstone", "ochre_stucco", "blue_stucco", "rose_stucco", "cream_stucco", "stone_trim"]
 		var noise = FastNoiseLite.new()
 		noise.seed = 52
-		noise.frequency = 0.065
+		noise.frequency = 0.12 if subtle_texture else 0.065
 		var tex = NoiseTexture2D.new()
 		tex.width = 256
 		tex.height = 256
 		tex.noise = noise
-		if kind in ["grass", "paving", "pool_tile", "retaining", "sand", "arena_sand", "sandstone", "arena_wall", "plaster", "terracotta", "wood"]:
+		if kind in ["grass", "paving", "pool_tile", "retaining", "sand", "arena_sand", "sandstone", "arena_wall", "plaster", "terracotta", "wood", "dark_wood", "ochre_stucco", "blue_stucco", "rose_stucco", "cream_stucco", "stone_trim", "courtyard_tile", "roof_tile", "foliage"]:
 			var ramp = Gradient.new()
-			ramp.colors = PackedColorArray([Color(0.7, 0.7, 0.7), Color(0.97, 0.97, 0.97)])
+			ramp.colors = PackedColorArray([Color(0.84, 0.84, 0.84), Color(0.99, 0.99, 0.99)]) if subtle_texture else PackedColorArray([Color(0.7, 0.7, 0.7), Color(0.97, 0.97, 0.97)])
 			tex.color_ramp = ramp
 		m.albedo_texture = tex
 		m.uv1_scale = Vector3(2, 2, 2)
@@ -81,7 +82,8 @@ static func label(parent: Node3D, text: String, at: Vector3, color: Color = Colo
 
 static func batch_static(root: Node3D) -> int:
 	var groups: Dictionary = {}
-	_collect_meshes(root, groups)
+	var chunk_size := float(root.get_meta("static_batch_chunk", 24.0))
+	_collect_meshes(root, groups, chunk_size)
 	var unit = BoxMesh.new()
 	unit.size = Vector3.ONE
 	for key in groups:
@@ -102,15 +104,15 @@ static func batch_static(root: Node3D) -> int:
 			visual.queue_free()
 	return groups.size()
 
-static func _collect_meshes(node: Node, groups: Dictionary) -> void:
+static func _collect_meshes(node: Node, groups: Dictionary, chunk_size: float = 24.0) -> void:
 	if node.get_meta("dynamic_geometry", false):
 		return
 	for child in node.get_children():
 		if child is MeshInstance3D and child.mesh is BoxMesh:
-			var chunk = (child.global_position / 24.0).floor()
+			var chunk = (child.global_position / chunk_size).floor()
 			var key = str(chunk) + "/" + str(child.material_override.get_instance_id())
 			if not groups.has(key):
 				groups[key] = {"material": child.material_override, "meshes": []}
 			groups[key].meshes.append(child)
 		else:
-			_collect_meshes(child, groups)
+			_collect_meshes(child, groups, chunk_size)

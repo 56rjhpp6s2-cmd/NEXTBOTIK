@@ -39,7 +39,7 @@ The HUD displays the current level, and the deepest reached level is saved. F3 i
 
 ## Bossfight mode
 
-Bossfight uses its own original **Dust Quarter** map: a sun-baked competitive-FPS district with courtyards, market passages, palace routes, flanks, arches and multiple chase loops. It is visually inspired by desert Counter-Strike maps without copying Mirage geometry or assets. On each of the first three levels, three switches are selected from ten valid locations; activate all three and reach the Sun Gate. The same authored layout returns with new switch positions on the following level.
+Bossfight uses its own original **Dust Quarter** map: a sun-baked competitive-FPS district with two distinct courtyards, a three-lane middle, supported market stalls, palace and underpass routes, outer rotations, arches and multiple chase loops. A full surrounding skyline now uses grounded buildings with roofs, parapets, doors, windows, balconies and attached signage; street lamps have posts and courtyard props sit on the ground. It is visually inspired by desert Counter-Strike maps without copying Mirage geometry or assets. On each of the first three levels, three switches are selected from ten valid locations; activate all three and reach the Sun Gate. The same authored layout returns with new switch positions on the following level.
 
 Every fourth level loads the separate **Sun Ring**, a large open circular arena with spaced pillars that provide fair cover from the boss's telegraphed charge. The first boss has **4,000 HP**. Each later boss gains **500 HP**, while ordinary Nextbots gain health, speed and population pressure after every victory. Defeating the boss automatically begins the next three-sector cycle, so progression continues indefinitely.
 

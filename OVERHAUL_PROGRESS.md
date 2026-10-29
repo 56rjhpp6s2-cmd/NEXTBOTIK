@@ -33,6 +33,7 @@ This file is the durable implementation checklist for the master overhaul. Check
 - [x] Live Sandbox controls and selected-PNG custom enemy spawning.
 - [x] Reliable automatic spawning in Arcade, Endless and Mayhem; configurable Sandbox auto-spawn toggle, interval, batch and cap.
 - [x] Original Dust Quarter objective map, randomized switches, Sun Ring arena, escalating 4,000 + 500 HP bosses and two-state supplied boss artwork.
+- [x] Rebuilt Dust Quarter visual/layout pass: grounded skyline buildings and props, supported market/lights, distinct lanes and courtyards, façade detail and bounded 36 m static batching.
 - [x] Authoritative Bossfight co-op: mode/seed handoff, shared switches, synchronized level cycle, boss HP/art/attacks and post-victory transition for up to eight players.
 - [x] Reusable explosive, freezing, piercing, ricochet, critical and multishot projectile modifiers.
 - [x] Static and Godot engine tests for the new architecture.

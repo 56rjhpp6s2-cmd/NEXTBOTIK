@@ -1,5 +1,14 @@
 # Verification status
 
+## Dust Quarter visual rebuild (2026-10-29)
+
+- Replaced the nearly full open floor and isolated block props with a 305-tile competitive street graph: Amber/Azure courtyards, three-lane mid, market, palace, underpass, outer rotation and connected flanks.
+- Added grounded internal and skyline buildings with varied stucco, roofs, parapets, doors, windows, trim, balconies and roof tanks. Market awnings now have four posts; every street/arena lantern has a pole or existing support; signs are wall-mounted or post-mounted.
+- Moved decorative planters, cover and barriers away from every possible switch cell. All three deterministic objective sets and the Sun Gate remain navigation-reachable.
+- Added aerial and first-person rendered inspection captures: `bossfight_dust_quarter.png` and `bossfight_dust_quarter_street.png`. No unsupported floating props are visible in the final views.
+- A Bossfight-specific 36 m batching cell reduced the richer map from 340 initial static batches to **217**; Sun Ring dropped to **72**. Local Bossfight passed **34/34**, map regression **47/47**, and two-process Bossfight networking **12/12 host + 19/19 client**.
+- Re-exported and headlessly booted `build/BELOW_ZERO.exe` (101,267,608 bytes), rebuilt `build/BELOW_ZERO_Friends.zip` (81,302,575 bytes), and passed **20/20** checks against a freshly extracted portable pack.
+
 ## Bossfight mode and dedicated maps (2026-10-28)
 
 - Added Bossfight as the fifth mode, now playable locally and in authoritative ENet co-op. Levels 1–3 use the original Dust Quarter desert-FPS layout and deterministically reroll three switches from ten validated locations; Level 4 uses the separate 333-tile open Sun Ring. The cycle repeats indefinitely.
