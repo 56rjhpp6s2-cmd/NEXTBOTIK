@@ -29,6 +29,13 @@ func wait_for_boss(game) -> NextbotEnemy:
 		await game.get_tree().physics_frame
 	return null
 
+func wait_for_reward(game, limit: int = 300) -> bool:
+	for frame in range(limit):
+		if game.post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION:
+			return true
+		await game.get_tree().physics_frame
+	return false
+
 func stage_objectives(game) -> Array[WorldInteractable]:
 	var result: Array[WorldInteractable] = []
 	for item in game.world.interactables:
@@ -112,9 +119,35 @@ func run(game) -> void:
 	boss._change_state(NextbotEnemy.State.CHASE)
 	check(boss.face.texture == GameModeManager.BOSSFIGHT_IDLE_FACE, "Boss restores its normal photograph outside an attack")
 	boss.combat.health.apply_damage(4000.0, game.player, boss.global_position)
-	check(await wait_for_level(game, 5), "Defeating the boss automatically opens the next three-level cycle")
+	check(await wait_for_reward(game), "Defeating the boss enters the mandatory reward-selection state")
+	check(is_instance_valid(game.post_boss.presentation) and game.post_boss.choices.size() == 2 and game.post_boss.choices[0] != game.post_boss.choices[1], "Reward NPC appears once with two different hand rewards")
+	check(not is_instance_valid(game.post_boss.lever), "Progression lever does not exist before reward selection")
+	game.post_boss.votes = {1: 0, 2: 1}
+	check(game.post_boss._majority_choice() in [0, 1], "Tied reward votes resolve to one server-authoritative hand")
+	game.post_boss.votes.clear()
+	check(game.post_boss._majority_choice() in [0, 1], "A no-vote reward phase resolves safely instead of becoming stuck")
+	var left_reward: String = game.post_boss.choices[0]
+	var stacks_before: int = game.game_modes.modifiers.stack_count(left_reward)
+	game.player.reset_at(game.post_boss.npc_position + game.post_boss.facing_player * 4.0)
+	game._look_at_point(game.post_boss.npc_position + Vector3.UP * 1.5)
+	await frames(game, 2)
+	game._look_at_point(game.post_boss.reward_roots[0].global_position)
+	await frames(game, 2)
+	game._update_interaction()
+	check(game.post_boss.focused_choice == 0 and "[E]" in game.interaction_prompt, "Generous camera ray targeting highlights the left-hand reward")
+	game._interact()
+	check(game.game_modes.modifiers.stack_count(left_reward) == stacks_before + 1, "Left-hand reward is applied exactly once")
+	game.post_boss._finalize_authoritative(0)
+	check(game.game_modes.modifiers.stack_count(left_reward) == stacks_before + 1, "Repeated finalization cannot grant the reward twice")
+	check(game.post_boss.state == PostBossRewardController.RewardState.PROGRESSION_UNLOCKED and is_instance_valid(game.post_boss.lever), "Lever appears only after reward finalization")
+	var behind: Vector3 = -game.post_boss.facing_player.normalized()
+	check((game.post_boss.lever.global_position - game.post_boss.npc_position).normalized().dot(behind) > 0.65, "Progression lever is placed behind the reference NPC")
+	check(game.post_boss.try_activate_lever(), "Unlocked lever accepts exactly one activation")
+	check(not game.post_boss.try_activate_lever(), "Lever cannot trigger a duplicate transition")
+	check(await wait_for_level(game, 5), "Reward lever opens the next three-level cycle")
 	await game.world.navigation.wait_ready()
 	game.spawn_timer = 9999.0
+	check(left_reward in game.game_modes.modifiers.acquired, "Selected reward persists across the level transition")
 	check(game.game_modes.bossfight_difficulty_tier() == 1 and game.world is BossfightWorld and not game.world.arena_mode, "Level 5 returns to Dust Quarter at difficulty tier 1")
 	game._clear_bots()
 	var stronger: NextbotEnemy = game._spawn_bot(game.world.patrol_points[0])
@@ -129,6 +162,11 @@ func run(game) -> void:
 	check(is_instance_valid(second_boss) and second_boss.max_health == 4500.0, "Second boss gains the configured 500 HP")
 	if is_instance_valid(second_boss):
 		second_boss.enabled = false
+		second_boss.combat.health.apply_damage(second_boss.combat.health.current_health, game.player, second_boss.global_position)
+		check(await wait_for_reward(game), "The post-boss encounter repeats on the next cycle")
+		var right_reward: String = game.post_boss.choices[1]
+		game.post_boss._finalize_authoritative(1)
+		check(right_reward in game.game_modes.modifiers.acquired and game.post_boss.winner == 1, "Right-hand reward selection works on a later boss")
 	await finish(game)
 
 func finish(game) -> void:

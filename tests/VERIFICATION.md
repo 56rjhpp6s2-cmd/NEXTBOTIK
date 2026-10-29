@@ -1,5 +1,15 @@
 # Verification status
 
+## Post-boss Reward Keeper (2026-10-29)
+
+- Added the supplied `assets/rewards/reward_keeper.jpg` as an aspect-preserving camera-facing life-sized NPC. The original classroom background is deliberately retained; no transparent cutout is claimed. Configurable left/right palm anchors carry two different rarity-colored reward objects.
+- Boss death now enters an explicit seven-state reward/progression machine. Exactly one selection is applied before a collision-validated lever can appear behind the NPC; the old arena exit is suppressed, and both reward and transition calls are idempotent.
+- Added 23 data-defined rewards across projectile, new-weapon, movement, defense and special-synergy categories. Weighted Common–Legendary choices filter duplicates and stack caps. Run snapshots preserve active weapon, stacked modifiers and shields across level changes.
+- Network protocol **6** adds a 20-second authoritative vote, one changeable ballot per player, majority/tie/no-vote resolution, disconnect cleanup, late-join reward snapshots and one synchronized lever transition. Final loopback results: **18/18 host** and **22/22 client** Bossfight checks; Endless remained **26/26 host** and **42/42 client**.
+- Local integration results: **49/49 Bossfight** and **76/76 mode/event** checks. They include both hand paths, real camera targeting, exactly-once application, hidden-before-selection/behind-NPC lever rules, later-cycle persistence, Sandbox manual testing and weapon-profile composition.
+- Rendered and inspected `bossfight_reward_selection.png` and `bossfight_reward_lever.png`: the supplied person remains recognizable and undistorted, rewards sit at the raised palms, and the lever is visible behind the NPC only after acquisition.
+- The 50-seed procedural regression remains **317/317**, and the project validator passes **17/17** checks. A release Windows export booted cleanly; the freshly extracted friend pack passed **22/22 portable checks**, including the Reward Keeper asset/controller, reward catalog and protocol 6.
+
 ## Dust Quarter visual rebuild (2026-10-29)
 
 - Replaced the nearly full open floor and isolated block props with a 305-tile competitive street graph: Amber/Azure courtyards, three-lane mid, market, palace, underpass, outer rotation and connected flanks.

@@ -36,6 +36,10 @@ This file is the durable implementation checklist for the master overhaul. Check
 - [x] Rebuilt Dust Quarter visual/layout pass: grounded skyline buildings and props, supported market/lights, distinct lanes and courtyards, façade detail and bounded 36 m static batching.
 - [x] Authoritative Bossfight co-op: mode/seed handoff, shared switches, synchronized level cycle, boss HP/art/attacks and post-victory transition for up to eight players.
 - [x] Reusable explosive, freezing, piercing, ricochet, critical and multishot projectile modifiers.
+- [x] Mandatory post-boss Reward Keeper using the supplied raised-hand photograph, two calibrated hand anchors, rarity presentation and ray-based E interaction.
+- [x] Data-defined 23-reward pool with weighted rarity, stack/dependency filtering, run persistence and four mechanically distinct PNG weapons.
+- [x] Protocol-6 authoritative two-choice multiplayer vote with changeable ballots, tie/no-vote handling, late-join snapshots and exactly-once group reward application.
+- [x] Collision-validated progression lever behind the NPC, hidden until rewards finalize and latched against duplicate transitions; lever-free Mayhem/Sandbox cleanup paths.
 - [x] Static and Godot engine tests for the new architecture.
 
 ## Remaining master-task work after this milestone

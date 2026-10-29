@@ -12,7 +12,7 @@ Open `project.godot` in your installed Godot 4.5 or newer and press **F5**. Stop
 
 `PLAY.cmd` and `EDITOR.cmd` use the portable Godot executable in `tools/engine` or an installation on PATH. The launcher imports resources before starting and never downloads anything. An optional `GODOT_ENGINE` environment variable can select another installed executable.
 
-To send the game to a friend, use **`build/BELOW_ZERO_Friends.zip`**. It contains the game pack, all bundled Nextbot and Bossfight photos, the selected PNG, a portable engine and Russian instructions. Extract the entire archive and run **`BELOW_ZERO/PLAY.cmd`**; no editor installation is needed. Both players should use the same archive. Run **`PACKAGE.cmd`** to rebuild it after changing the project.
+To send the game to a friend, use **`build/BELOW_ZERO_Friends.zip`**. It contains the game pack, all bundled Nextbot, Bossfight and Reward Keeper photos, the selected PNG, a portable engine and Russian instructions. Extract the entire archive and run **`BELOW_ZERO/PLAY.cmd`**; no editor installation is needed. Both players should use the same archive. Run **`PACKAGE.cmd`** to rebuild it after changing the project.
 
 Three bundled Nextbot appearances rotate during encounters: the original `assets/nextbot_face.jpg`, `assets/nextbot_faces/elena_finkelshteyn.jpg`, and `assets/nextbot_faces/5402324111498878359.jpg`. Each enemy uses its own photograph for the jumpscare, including over multiplayer.
 
@@ -41,11 +41,15 @@ The HUD displays the current level, and the deepest reached level is saved. F3 i
 
 Bossfight uses its own original **Dust Quarter** map: a sun-baked competitive-FPS district with two distinct courtyards, a three-lane middle, supported market stalls, palace and underpass routes, outer rotations, arches and multiple chase loops. A full surrounding skyline now uses grounded buildings with roofs, parapets, doors, windows, balconies and attached signage; street lamps have posts and courtyard props sit on the ground. It is visually inspired by desert Counter-Strike maps without copying Mirage geometry or assets. On each of the first three levels, three switches are selected from ten valid locations; activate all three and reach the Sun Gate. The same authored layout returns with new switch positions on the following level.
 
-Every fourth level loads the separate **Sun Ring**, a large open circular arena with spaced pillars that provide fair cover from the boss's telegraphed charge. The first boss has **4,000 HP**. Each later boss gains **500 HP**, while ordinary Nextbots gain health, speed and population pressure after every victory. Defeating the boss automatically begins the next three-sector cycle, so progression continues indefinitely.
+Every fourth level loads the separate **Sun Ring**, a large open circular arena with spaced pillars that provide fair cover from the boss's telegraphed charge. The first boss has **4,000 HP**. Each later boss gains **500 HP**, while ordinary Nextbots gain health, speed and population pressure after every victory.
+
+Defeating a boss now starts a mandatory post-boss reward encounter. The photographed **Reward Keeper** appears once with a different data-driven weapon or upgrade above each raised hand. Look at the left or right item and press **E**. The selected reward persists for the current run; only after it has been applied does a dedicated progression lever appear behind the Keeper. Pulling that lever starts the next three-sector cycle. The normal arena exit stays disabled throughout selection, so the reward cannot be skipped.
+
+The pool includes weighted Common through Legendary projectile, movement, defense and synergy upgrades plus genuinely different PNG Minigun, Meme Howitzer, Spreadshot and charged Chargeposter weapons. Maxed, duplicate and invalid choices are filtered. PNG Mayhem uses the same system after boss waves without creating a progression lever; Sandbox exposes a manual **SPAWN / RESET REWARD KEEPER** test button.
 
 The supplied `assets/bosses/bossfight_idle.jpg` is the boss's normal billboard. During its charge and direct attack it switches to `bossfight_attack.jpg`; that aggressive image is also active when the boss catches the player. Both source photographs are bundled unchanged.
 
-Bossfight is fully cooperative: the host synchronizes the selected mode, level seed, randomized switches and every transition. On Sun Ring levels the host owns boss AI and damage; guests receive the same 4,000 + 500 HP scaling, boss bar, idle/attack photographs and post-victory transition. Late join uses the host's current Bossfight level and seed. All players must use the same current build because this data is part of network protocol 5.
+Bossfight is fully cooperative: the host synchronizes the selected mode, level seed, randomized switches and every transition. On Sun Ring levels the host owns boss AI and damage; guests receive the same 4,000 + 500 HP scaling, boss bar and idle/attack photographs. After victory every eligible player votes for the left or right hand during a 20-second server-authoritative vote. Votes can be changed; majority wins, and ties or no votes resolve through authoritative random selection. Everyone receives the same reward, then the shared lever unlocks and performs one synchronized transition. Late join receives the current reward phase, vote state, run modifiers, Bossfight level and seed. All players must use the same current build because this data is part of network protocol 6.
 
 ## Controls
 
@@ -58,7 +62,7 @@ Bossfight is fully cooperative: the host synchronizes the selected mode, level s
 | A / D in the air | Air strafe to carry speed through turns |
 | F4 | Show or hide the speedometer |
 | F2 | Open or close live Sandbox controls while playing Sandbox |
-| E | Restore breaker, collect battery, enter/leave locker, use lift or descent gate |
+| E | Interact; restore breakers, choose/vote for hand rewards, pull levers, use lifts and gates |
 | F | Toggle flashlight |
 | Left mouse (hold or click) | Throw selected PNG |
 | Right mouse (hold) | Aim |
@@ -102,13 +106,13 @@ Settings include sensitivity, brightness/minimum visibility, separate master/mus
 - `scripts/construct_world.gd`: outdoor Construct map, daylight, grass, pool, garages, darkroom and roof routes, using the shared gameplay and navigation systems.
 - `scripts/bossfight_world.gd`: Dust Quarter, randomized switch placement and the circular Sun Ring boss arena.
 - `scripts/procedural/`, `scenes/procedural/`: deterministic room placement, reusable room prefabs, procedural world rendering, validation and progression configuration.
-- `scripts/interactable.gd`: breakers, batteries, lockers and lift.
+- `scripts/interactable.gd`: breakers, batteries, lockers, lifts and the post-reward progression lever.
 - `scripts/audio.gd`: generated PCM, spatial effects, audio buses and adaptive chase score.
 - `scripts/ui.gd`, `overlay.gdshader`: main menu, settings, HUD, pause, jumpscare and results.
 - `scripts/settings.gd`: persistence and Windows display configuration.
 - `scripts/combat/`: PNG image loading/import, projectile controller, swept projectile collisions, reusable health/damage, Nextbot reactions and combat HUD/library.
 - `scripts/network/`: ENet host/join, server authority, player avatars, interpolated world snapshots, custom PNG exchange and network menu.
-- `scripts/gameplay/`: four mode policies, reusable upgrades, local statistics and reversible random events.
+- `scripts/gameplay/`: five mode policies, post-boss state machine, reusable reward definitions, local statistics and reversible random events.
 - `resources/gameplay_config.tres`: central Arcade, Mayhem, boss and event tuning.
 
 Map geometry and its navigation surfaces are created deterministically from the same tile layout. Stair ramps share edge vertices with the floors. Bot clearance is inset at walls, physical props sit outside navigation clearance, and low player-only shortcuts are excluded from the bot mesh. Static boxes are batched by material in 24-meter chunks to reduce draw calls while preserving frustum culling. Quality settings limit shadows and multisampling.

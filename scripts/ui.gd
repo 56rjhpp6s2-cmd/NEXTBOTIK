@@ -53,6 +53,12 @@ var upgrade_buttons: Array[Button] = []
 var sandbox_screen: Control
 var sandbox_controls: Dictionary = {}
 var boss_label: Label
+var reward_panel: Control
+var reward_title: Label
+var reward_vote_label: Label
+var reward_cards: Array[PanelContainer] = []
+var reward_texts: Array[Label] = []
+var reward_ids: Array[String] = []
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -255,6 +261,32 @@ func _build_hud() -> void:
 	boss_label = _label(hud, "", 23, Color("ef7568"))
 	_at(boss_label, Vector2(400, 150), Vector2(800, 44))
 	boss_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_build_reward_hud()
+
+func _build_reward_hud() -> void:
+	reward_panel = Control.new()
+	reward_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	reward_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(reward_panel)
+	reward_title = _label(reward_panel, "POST-BOSS REWARD  /  CHOOSE ONE", 27, ACCENT)
+	_at(reward_title, Vector2(430, 210), Vector2(740, 44))
+	reward_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	for index in range(2):
+		var card := PanelContainer.new()
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_at(card, Vector2(55 if index == 0 else 1145, 300), Vector2(400, 205))
+		reward_panel.add_child(card)
+		var label := _label(card, "REWARD", 20)
+		label.custom_minimum_size = Vector2(370, 180)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		reward_cards.append(card)
+		reward_texts.append(label)
+	reward_vote_label = _label(reward_panel, "", 22, Color("ffe4a3"))
+	_at(reward_vote_label, Vector2(500, 620), Vector2(600, 75))
+	reward_vote_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	reward_panel.visible = false
 
 func _build_pause() -> void:
 	pause_screen = _screen(0.88)
@@ -429,6 +461,7 @@ func _build_sandbox() -> void:
 	_sandbox_toggle(right, "Player invincible", "invincible", true)
 	_sandbox_toggle(right, "AUTO SPAWN NEXTBOTS", "auto_spawn", false)
 	_button(right, "SPAWN SELECTED PNG NEXTBOT", "sandbox_spawn")
+	_button(right, "SPAWN / RESET REWARD KEEPER", "sandbox_reward")
 	_button(right, "REMOVE ALL NEXTBOTS", "sandbox_remove")
 	_button(right, "TRIGGER RANDOM EVENT", "sandbox_event")
 	_button(right, "REGENERATE PROCEDURAL MAP", "sandbox_regenerate")
@@ -548,6 +581,8 @@ func update_hud(session) -> void:
 	if is_instance_valid(session.game_modes.active_boss) and not session.game_modes.active_boss.combat.dead:
 		var boss_health = session.game_modes.active_boss.get_health_component()
 		boss_label.text = "BOSS  %d / %d HP" % [ceili(boss_health.current_health), ceili(boss_health.max_health)]
+	if is_instance_valid(session.post_boss) and session.post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION and session.network.active:
+		update_reward_votes(session.post_boss.votes, session.post_boss.vote_time_left, session.network.local_id())
 	overlay.material.set_shader_parameter("danger", clampf(session.threat, 0, 1))
 	debug_label.visible = session.debug_ai
 	if session.debug_ai:
@@ -611,6 +646,72 @@ func show_upgrades(upgrades: Array[String], definitions: Dictionary) -> void:
 		var key = upgrades[index]
 		upgrade_buttons[index].text = "%s\n%s" % [definitions[key].title, definitions[key].description]
 	show_screen("upgrades")
+
+func show_reward_phase(rewards: Array[String], multiplayer_vote: bool, time_left: float) -> void:
+	reward_ids = rewards.duplicate()
+	reward_panel.visible = rewards.size() == 2
+	reward_title.text = "POST-BOSS VOTE  /  CHOOSE ONE" if multiplayer_vote else "POST-BOSS REWARD  /  CHOOSE ONE"
+	for index in range(mini(2, rewards.size())):
+		var definition: Dictionary = GameplayModifierSet.DEFINITIONS[rewards[index]]
+		var rarity := str(definition.rarity).to_upper()
+		var current_stack: int = get_parent().game_modes.modifiers.stack_count(rewards[index])
+		var maximum_stack := int(definition.get("max_stacks", 1))
+		reward_texts[index].text = "%s HAND\n%s\n%s  /  %s\n\n%s\n%s\nCURRENT STACK  %d / %d" % ["LEFT" if index == 0 else "RIGHT", definition.title, rarity, definition.category, definition.description, definition.stats, current_stack, maximum_stack]
+		_set_reward_card_style(index, GameplayModifierSet.rarity_color(rewards[index]), false)
+	update_reward_votes({}, time_left, 1)
+
+func _set_reward_card_style(index: int, color: Color, focused: bool) -> void:
+	if index < 0 or index >= reward_cards.size():
+		return
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(color.r * 0.08, color.g * 0.08, color.b * 0.08, 0.90)
+	style.border_color = color.lightened(0.22) if focused else color.darkened(0.18)
+	style.set_border_width_all(4 if focused else 2)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.content_margin_left = 14
+	style.content_margin_right = 14
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
+	reward_cards[index].add_theme_stylebox_override("panel", style)
+	reward_texts[index].add_theme_color_override("font_color", color.lightened(0.18))
+
+func focus_reward(index: int) -> void:
+	for card_index in range(mini(2, reward_ids.size())):
+		_set_reward_card_style(card_index, GameplayModifierSet.rarity_color(reward_ids[card_index]), card_index == index)
+
+func update_reward_votes(votes: Dictionary, time_left: float, local_id: int) -> void:
+	if not reward_panel.visible:
+		return
+	var counts := [0, 0]
+	for choice in votes.values():
+		if int(choice) in [0, 1]:
+			counts[int(choice)] += 1
+	if votes.is_empty() and not get_parent().network.active:
+		reward_vote_label.text = "LOOK AT A HAND AND PRESS [E]"
+	else:
+		var mine := int(votes.get(local_id, -1))
+		var vote_text := "LEFT" if mine == 0 else ("RIGHT" if mine == 1 else "NONE")
+		reward_vote_label.text = "LEFT  %d VOTES    /    RIGHT  %d VOTES\n%02d SEC    /    YOUR VOTE: %s" % [counts[0], counts[1], ceili(time_left), vote_text]
+
+func finalize_reward(choice: int, reward: String, lever_required: bool = true) -> void:
+	if not reward_panel.visible or choice not in [0, 1]:
+		return
+	var definition: Dictionary = GameplayModifierSet.DEFINITIONS[reward]
+	reward_title.text = "ACQUIRED  /  %s" % definition.title
+	reward_cards[1 - choice].modulate = Color(1, 1, 1, 0.18)
+	reward_cards[choice].modulate = Color.WHITE
+	reward_vote_label.text = "PROGRESSION UNLOCKED  /  LEVER BEHIND THE KEEPER" if lever_required else "REWARD INSTALLED"
+
+func hide_reward_phase() -> void:
+	if not is_instance_valid(reward_panel):
+		return
+	reward_panel.visible = false
+	reward_ids.clear()
+	for card in reward_cards:
+		card.modulate = Color.WHITE
 
 func show_statistics(statistics) -> void:
 	var d: Dictionary = statistics.data

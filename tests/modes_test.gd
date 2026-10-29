@@ -115,6 +115,13 @@ func run(game) -> void:
 	game.game_modes.sandbox_action("auto_spawn", false)
 	for index in range(3):
 		await game.get_tree().physics_frame
+	game.game_modes.sandbox_action("reward")
+	await game.get_tree().physics_frame
+	check(game.post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION and game.post_boss.choices.size() == 2, "Sandbox can manually spawn and reset the two-hand reward NPC")
+	check(not is_instance_valid(game.post_boss.lever), "Sandbox reward testing never creates a progression lever")
+	game.post_boss._finalize_authoritative(1)
+	check(game.post_boss.winner == 1 and not is_instance_valid(game.post_boss.lever), "Sandbox can test the right reward without forcing progression")
+	game.post_boss.reset_run()
 
 	# Every event can start, advertises one active owner and restores its changes.
 	game._clear_bots()
@@ -146,6 +153,20 @@ func run(game) -> void:
 		check(modifier.apply(upgrade), "Reusable modifier applies: %s" % upgrade)
 	check(modifier.damage_multiplier > 1.0 and modifier.projectile_count == 2 and modifier.explosion_radius > 0.0, "Modifier values compose without weapon conditionals")
 	check(modifier.consume_shield() and not modifier.consume_shield(), "Temporary shield is consumed exactly once")
+	var rapid_weapon := GameplayModifierSet.new()
+	var heavy_weapon := GameplayModifierSet.new()
+	var spread_weapon := GameplayModifierSet.new()
+	var charged_weapon := GameplayModifierSet.new()
+	rapid_weapon.apply("rapid_launcher")
+	heavy_weapon.apply("heavy_cannon")
+	spread_weapon.apply("spread_blaster")
+	charged_weapon.apply("charged_launcher")
+	check(rapid_weapon.projectile_profile().cooldown_multiplier < 0.5 and heavy_weapon.projectile_profile().explosion_radius >= 2.8, "Rapid and heavy reward weapons have genuinely different mechanics")
+	check(int(spread_weapon.projectile_profile().count) >= 5 and charged_weapon.projectile_profile().weapon == "charged_launcher", "Spread and charged reward weapons publish distinct firing profiles")
+	var reward_rng := RandomNumberGenerator.new()
+	reward_rng.seed = 8086
+	var hand_choices: Array[String] = modifier.choices(reward_rng, 2)
+	check(hand_choices.size() == 2 and hand_choices[0] != hand_choices[1], "Weighted reward generation never duplicates both hands")
 	game.return_to_menu()
 	game._select_game_mode(GameModeManager.GameplayMode.PNG_MAYHEM)
 	game.start_run()

@@ -29,7 +29,9 @@ func _run() -> void:
 	check(game.face_textures.size() == 3 and game.face_textures[1].get_width() > 900 and game.face_textures[2].get_height() > 900, "Pack loads all three bundled Nextbot faces")
 	check(game.player.sprint_speed > 10.0 and game.player.has_method("_start_slide") and game.player.has_method("_can_stand"), "Pack includes the advanced movement controller")
 	check(ResourceLoader.exists("res://assets/bosses/bossfight_idle.jpg") and ResourceLoader.exists("res://assets/bosses/bossfight_attack.jpg"), "Pack contains both supplied Bossfight photographs")
-	check(game.game_modes.NAMES.size() == 5 and game.network.PROTOCOL == 5, "Pack contains online Bossfight and network protocol 5")
+	check(ResourceLoader.exists("res://assets/rewards/reward_keeper.jpg") and game.post_boss != null, "Pack contains the supplied Reward Keeper and post-boss controller")
+	check(game.game_modes.modifiers.DEFINITIONS.size() >= 20, "Pack contains the data-defined post-boss reward catalog")
+	check(game.game_modes.NAMES.size() == 5 and game.network.PROTOCOL == 6, "Pack contains online Bossfight and network protocol 6")
 	var has_stamina := false
 	for property in game.player.get_property_list():
 		if property.name == "stamina":

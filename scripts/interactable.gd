@@ -14,6 +14,14 @@ func _ready() -> void:
 			WorldSurface.box(self, Vector3(0.65, 1.0, 0.5), Vector3.ZERO, "metal")
 			indicator = WorldSurface.box(self, Vector3(0.4, 0.12, 0.53), Vector3(0, 0.2, 0), "emergency", false)
 			WorldSurface.label(self, title, Vector3(0, 0.85, 0), Color("dce3cb"), 23)
+		"progression_lever":
+			WorldSurface.box(self, Vector3(0.85, 0.28, 0.85), Vector3(0, -0.55, 0), "stone_trim")
+			WorldSurface.box(self, Vector3(0.48, 1.25, 0.48), Vector3(0, 0.05, 0), "metal")
+			indicator = WorldSurface.box(self, Vector3(0.14, 0.95, 0.14), Vector3(0, 0.72, 0.05), "green", false)
+			indicator.rotation.x = -0.42
+			WorldSurface.box(indicator, Vector3(0.34, 0.34, 0.34), Vector3(0, 0.48, 0), "glow", false)
+			var lever_label := WorldSurface.label(self, title + "\n[E] PULL", Vector3(0, 1.35, 0), Color("8fffd8"), 27)
+			lever_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		"battery":
 			indicator = WorldSurface.box(self, Vector3(0.22, 0.35, 0.22), Vector3.ZERO, "green", false)
 		"hide":
@@ -28,9 +36,9 @@ func _ready() -> void:
 				WorldSurface.box(self, Vector3(0.65, 0.025, 0.02), Vector3(0, 1.8 + n * 0.07, -0.51), "dark", false)
 	if kind != "hide":
 		light = OmniLight3D.new()
-		light.light_color = Color("7ad8bd") if kind == "battery" else Color("f17658")
+		light.light_color = Color("7ad8bd") if kind in ["battery", "progression_lever"] else Color("f17658")
 		light.light_energy = 0.45
-		light.omni_range = 2.4
+		light.omni_range = 2.7 if kind == "progression_lever" else 2.4
 		light.position.y = 0.5
 		add_child(light)
 
@@ -41,6 +49,7 @@ func prompt(breakers: int) -> String:
 		"breaker": return "[E] RESTORE " + title
 		"battery": return "[E] TAKE BATTERY  +45%"
 		"hide": return "[E] HIDE IN LOCKER"
+		"progression_lever": return "[E] PULL LEVER  /  ENTER NEXT LEVEL"
 		"exit":
 			var is_gate := title in ["DESCENT GATE", "SUN GATE"]
 			var action = "ENTER NEXT SECTOR" if title == "SUN GATE" else ("DESCEND THROUGH GATE" if is_gate else "CALL SERVICE LIFT")
@@ -57,6 +66,12 @@ func activate() -> void:
 			if child is MeshInstance3D:
 				child.material_override = WorldSurface.material("green")
 		light.light_color = Color("7ad8bd")
+	elif kind == "progression_lever":
+		active = false
+		var tween := create_tween()
+		tween.tween_property(indicator, "rotation:x", 0.78, 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tween.parallel().tween_property(light, "light_energy", 2.6, 0.12)
+		tween.tween_property(light, "light_energy", 0.0, 0.35)
 
 func reset() -> void:
 	used = false

@@ -1,6 +1,6 @@
 extends RefCounted
 ## Two-process Bossfight regression: mode/seed handoff, shared switches,
-## synchronized transitions, the two-state boss and post-boss scaling.
+## synchronized transitions, the two-state boss, reward voting and scaling.
 var failures: Array[String] = []
 var checks: int = 0
 var folder: String
@@ -115,7 +115,7 @@ func host_test() -> void:
 		if client_id > 1:
 			break
 		await game.get_tree().physics_frame
-	check(client_id > 1, "Bossfight client completes the protocol-5 handshake")
+	check(client_id > 1, "Bossfight client completes the protocol-6 handshake")
 	if client_id == 0:
 		finish("HOST")
 		return
@@ -166,7 +166,41 @@ func host_test() -> void:
 	write_state("host", "damage", {"hp": boss.combat.health.current_health})
 	await wait_stage("client", "damage_seen")
 	game.damage_system.apply_hit(boss, boss.combat.health.current_health, game.player, boss.global_position + Vector3.UP, Vector3.BACK)
-	check(await wait_level(5), "Boss death advances the entire session to the next three-stage cycle")
+	for frame in range(300):
+		if game.post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION:
+			break
+		await game.get_tree().physics_frame
+	check(game.post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION, "Boss death starts one authoritative network reward phase")
+	check(game.post_boss.choices.size() == 2 and game.post_boss.choices[0] != game.post_boss.choices[1] and not is_instance_valid(game.post_boss.lever), "Host exposes two distinct rewards and keeps the lever hidden")
+	teleport(1, game.post_boss.npc_position + game.post_boss.facing_player * 2.5)
+	teleport(client_id, game.post_boss.npc_position + game.post_boss.facing_player * 3.0)
+	write_state("host", "reward", {"phase": game.post_boss.phase_id, "left": game.post_boss.choices[0], "right": game.post_boss.choices[1]})
+	await wait_stage("client", "voted")
+	for frame in range(90):
+		if game.post_boss.votes.has(client_id):
+			break
+		await game.get_tree().physics_frame
+	game.network._server_reward_vote(client_id, 0)
+	game.network._server_reward_vote(client_id, 1)
+	check(game.post_boss.votes.size() == 1 and int(game.post_boss.votes[client_id]) == 1, "A peer can change its vote without creating a duplicate ballot")
+	game.post_boss.remove_vote(client_id)
+	check(not game.post_boss.votes.has(client_id), "Disconnected-player cleanup removes its active reward vote")
+	game.network._server_reward_vote(client_id, 1)
+	game.network._server_reward_vote(1, 1)
+	check(game.post_boss.votes.size() == 2 and int(game.post_boss.votes[client_id]) == 1, "Server synchronizes one changeable vote per eligible peer")
+	game.post_boss.vote_time_left = 0.01
+	for frame in range(120):
+		if game.post_boss.state == PostBossRewardController.RewardState.PROGRESSION_UNLOCKED:
+			break
+		await game.get_tree().physics_frame
+	check(game.post_boss.winner == 1 and is_instance_valid(game.post_boss.lever), "Right-hand majority wins and unlocks the shared lever")
+	write_state("host", "finalized", {"reward": game.post_boss.choices[1]})
+	await wait_stage("client", "finalized_seen")
+	var lever_index: int = game.world.interactables.find(game.post_boss.lever)
+	teleport(1, game.post_boss.lever.global_position + game.post_boss.facing_player * 1.5)
+	game.network._server_interact(1, lever_index)
+	game.network._server_interact(1, lever_index)
+	check(await wait_level(5), "One server-authoritative lever activation advances the entire session")
 	disable_stage_enemies()
 	write_state("host", "level5", {"seed": game.current_generation_seed, "signature": game.world.objective_signature})
 	await wait_stage("client", "level5_seen")
@@ -224,6 +258,22 @@ func client_test() -> void:
 	await frames(12)
 	check(is_instance_valid(boss) and boss.combat.health.current_health == float(stage.hp) and float(stage.hp) == 3980.0, "Boss damage and HP bar are authoritative on the guest")
 	write_state("client", "damage_seen")
+	stage = await wait_stage("host", "reward")
+	for frame in range(300):
+		if game.post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION:
+			break
+		await game.get_tree().physics_frame
+	check(game.post_boss.phase_id == int(stage.phase) and game.post_boss.choices == [str(stage.left), str(stage.right)], "Guest sees the same NPC hand rewards and phase ID")
+	game.network.request_reward_vote(1)
+	write_state("client", "voted")
+	stage = await wait_stage("host", "finalized")
+	for frame in range(180):
+		if game.post_boss.state == PostBossRewardController.RewardState.PROGRESSION_UNLOCKED:
+			break
+		await game.get_tree().physics_frame
+	check(game.post_boss.winner == 1 and str(stage.reward) in game.game_modes.modifiers.acquired, "Guest receives the majority reward exactly once")
+	check(is_instance_valid(game.post_boss.lever), "Guest reveals the synchronized lever only after voting closes")
+	write_state("client", "finalized_seen")
 	stage = await wait_stage("host", "level5")
 	check(await wait_level(5), "Guest continues online after the boss into Level 5")
 	check(game.game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT and game.world is BossfightWorld, "Bossfight mode remains active after the online boss transition")

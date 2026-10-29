@@ -29,6 +29,9 @@ var last_hit_enemy: Node3D
 var target_scan: float = 0.0
 var hit_time: float = 0.0
 var hit_lethal: bool = false
+var charging: bool = false
+var charge_elapsed: float = 0.0
+var shot_serial: int = 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -44,7 +47,17 @@ func _ready() -> void:
 	_on_image_selected(images.current_entry())
 
 func _can_use() -> bool:
-	return session.is_local_playing() and not player.hidden
+	if not session.is_local_playing() or player.hidden:
+		return false
+	if is_instance_valid(session.post_boss) and session.post_boss.state in [
+		PostBossRewardController.RewardState.BOSS_DEFEATED,
+		PostBossRewardController.RewardState.REWARD_PREPARATION,
+		PostBossRewardController.RewardState.REWARD_SELECTION,
+		PostBossRewardController.RewardState.REWARD_FINALIZED,
+		PostBossRewardController.RewardState.PROGRESSION_UNLOCKED,
+	]:
+		return false
+	return true
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not _can_use():
@@ -74,9 +87,20 @@ func _physics_process(delta: float) -> void:
 	if animation == null or not animation.is_running():
 		var at = Vector3(0.14, -0.13, -0.55) if player.view.aiming else Vector3(0.28, -0.23, -0.52)
 		held_image.position = held_image.position.lerp(at, 1.0 - exp(-delta * 16.0))
+	var current_profile: Dictionary = session.game_modes.projectile_profile() if is_instance_valid(session.game_modes) else {}
+	var charged_weapon := str(current_profile.get("weapon", "png_thrower")) == "charged_launcher"
 	if require_release:
 		if not Input.is_action_pressed("throw_png"):
 			require_release = false
+	elif charged_weapon:
+		if Input.is_action_pressed("throw_png") and cooldown_remaining <= 0.0 and reload_remaining <= 0.0:
+			charging = true
+			charge_elapsed = minf(1.2, charge_elapsed + delta)
+		elif charging:
+			var power := clampf(charge_elapsed / 1.2, 0.2, 1.0)
+			charging = false
+			charge_elapsed = 0.0
+			fire(power)
 	elif Input.is_action_pressed("throw_png"):
 		fire()
 	target_scan -= delta
@@ -84,7 +108,7 @@ func _physics_process(delta: float) -> void:
 		target_scan = 0.08
 		_scan_target()
 
-func fire() -> Node3D:
+func fire(charge_power: float = 1.0) -> Node3D:
 	if not _can_use() or cooldown_remaining > 0.0 or reload_remaining > 0.0:
 		return null
 	if not unlimited_ammo and ammo <= 0:
@@ -94,22 +118,26 @@ func fire() -> Node3D:
 	if texture == null:
 		return null
 	var profile: Dictionary = session.game_modes.projectile_profile() if is_instance_valid(session.game_modes) else {}
-	if is_instance_valid(session.network) and session.network.active:
-		# The established network protocol transports the default projectile. New
-		# Mayhem modifiers are intentionally local until protocol authority is added.
-		profile = {}
 	cooldown_remaining = maxf(0.01, throw_cooldown * float(profile.get("cooldown_multiplier", 1.0)))
 	if not unlimited_ammo:
 		ammo -= 1
 	var projectile: Node3D
 	var count = maxi(1, int(profile.get("count", 1)))
 	for index in range(count):
+		shot_serial += 1
+		var shot_profile := profile.duplicate()
+		if shot_serial % 5 == 0:
+			shot_profile["trigger_damage_multiplier"] = float(profile.get("fifth_shot_multiplier", 1.0))
+		if player.sliding:
+			shot_profile["trigger_damage_multiplier"] = float(shot_profile.get("trigger_damage_multiplier", 1.0)) * float(profile.get("sliding_damage_multiplier", 1.0))
+		if not player.is_on_floor() and Vector2(player.velocity.x, player.velocity.z).length() > 7.0:
+			shot_profile["critical_chance"] = float(profile.get("critical_chance", 0.0)) + float(profile.get("airborne_critical_bonus", 0.0))
 		var center = (float(count) - 1.0) * 0.5
-		var direction = (-player.view.camera.global_basis.z + player.view.camera.global_basis.x * (float(index) - center) * 0.035).normalized()
+		var direction = (-player.view.camera.global_basis.z + player.view.camera.global_basis.x * (float(index) - center) * float(profile.get("spread", 0.035))).normalized()
 		if is_instance_valid(session.network) and session.network.active:
-			projectile = session.network.throw_local(texture, player.view.camera.global_position, direction)
+			projectile = session.network.throw_local(texture, player.view.camera.global_position, direction, charge_power)
 		else:
-			projectile = launch(texture, player.view.camera.global_position, direction, null, false, profile)
+			projectile = launch(texture, player.view.camera.global_position, direction, null, false, shot_profile, charge_power)
 		if is_instance_valid(session.statistics):
 			session.statistics.add("total_png_projectiles_thrown")
 	_play_throw()
@@ -120,7 +148,7 @@ func fire() -> Node3D:
 	state_changed.emit()
 	return projectile
 
-func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor: Node3D = null, visual_only: bool = false, profile: Dictionary = {}) -> Node3D:
+func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor: Node3D = null, visual_only: bool = false, profile: Dictionary = {}, charge_power: float = 1.0) -> Node3D:
 	var projectile = ProjectileScript.new()
 	projectile.shooter = owner_actor if owner_actor != null else player
 	projectile.visual_only = visual_only
@@ -128,20 +156,22 @@ func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor
 	projectile.damage_system = damage_system
 	projectile.run_id = run_id
 	projectile.texture = texture
-	projectile.damage = projectile_damage * float(profile.get("damage_multiplier", 1.0))
+	projectile.damage = projectile_damage * float(profile.get("damage_multiplier", 1.0)) * float(profile.get("trigger_damage_multiplier", 1.0))
+	if str(profile.get("weapon", "png_thrower")) == "charged_launcher":
+		projectile.damage *= lerpf(0.7, 3.0, clampf(charge_power, 0.2, 1.0))
 	if randf() < float(profile.get("critical_chance", 0.0)):
 		projectile.damage *= 2.0
 		projectile.critical = true
-	projectile.speed = projectile_speed
-	projectile.maximum_range = maximum_range
+	projectile.speed = projectile_speed * float(profile.get("velocity_multiplier", 1.0))
+	projectile.maximum_range = maximum_range * float(profile.get("range_multiplier", 1.0))
 	projectile.lifetime = projectile_lifetime
-	projectile.image_size = Settings.projectile_size
-	projectile.collision_radius = clampf(Settings.projectile_size * 0.12, 0.06, 0.22)
+	projectile.image_size = Settings.projectile_size * float(profile.get("size_multiplier", 1.0))
+	projectile.collision_radius = clampf(projectile.image_size * 0.12 * float(profile.get("hitbox_multiplier", 1.0)), 0.06, 0.38)
 	projectile.explosion_radius = float(profile.get("explosion_radius", 0.0))
 	projectile.freeze_seconds = float(profile.get("freeze_seconds", 0.0))
 	projectile.piercing_remaining = int(profile.get("piercing", 0))
 	projectile.ricochets_remaining = int(profile.get("ricochets", 0))
-	projectile.velocity = direction.normalized() * projectile_speed
+	projectile.velocity = direction.normalized() * projectile.speed
 	projectile.position = origin
 	session.add_child(projectile)
 	projectiles.append(projectile)
@@ -211,6 +241,8 @@ func suspend_input() -> void:
 	clear_aim()
 	require_release = true
 	held_image.visible = false
+	charging = false
+	charge_elapsed = 0.0
 
 func reset_run(keep_others: bool = false) -> void:
 	if keep_others:
@@ -229,6 +261,9 @@ func reset_run(keep_others: bool = false) -> void:
 	aimed_enemy = null
 	last_hit_enemy = null
 	require_release = true
+	charging = false
+	charge_elapsed = 0.0
+	shot_serial = 0
 	if animation != null:
 		animation.kill()
 	held_image.position = Vector3(0.28, -0.23, -0.52)

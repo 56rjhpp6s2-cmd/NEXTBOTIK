@@ -1,7 +1,7 @@
 extends Node
 ## ENet listen-server cooperative session. Gameplay authority stays on peer 1.
 signal status_changed(message: String)
-const PROTOCOL: int = 5
+const PROTOCOL: int = 6
 const MAX_PLAYERS: int = 8
 const RemoteActor = preload("res://scripts/network/remote_player.gd")
 const NetworkImages = preload("res://scripts/network/network_images.gd")
@@ -196,6 +196,8 @@ func _peer_left(id: int) -> void:
 		actor.queue_free()
 		avatars.erase(id)
 	peers.erase(id)
+	if is_instance_valid(session.post_boss):
+		session.post_boss.remove_vote(id)
 	if is_host():
 		_peer_removed.rpc(epoch, id)
 
@@ -206,7 +208,7 @@ func _peer_removed(round_id: int, id: int) -> void:
 	_peer_left(id)
 
 func _new_peer(id: int, player_name: String, at: Vector3) -> Dictionary:
-	return {"id": id, "name": player_name.strip_edges().left(20), "p": at, "v": Vector3.ZERO, "yaw": PI, "pitch": 0.0, "alive": true, "ready": false, "hidden": false, "hide_left": 0.0, "hide_cooldown": 0.0, "hide_item": -1, "light": true, "battery": 100.0, "crouch": false, "kills": 0, "next_fire": 0.0, "last_seq": 0, "last_pose": Time.get_ticks_msec(), "last_step": 0.0, "art": ""}
+	return {"id": id, "name": player_name.strip_edges().left(20), "p": at, "v": Vector3.ZERO, "yaw": PI, "pitch": 0.0, "alive": true, "ready": false, "hidden": false, "hide_left": 0.0, "hide_cooldown": 0.0, "hide_item": -1, "light": true, "battery": 100.0, "crouch": false, "slide": false, "kills": 0, "next_fire": 0.0, "last_seq": 0, "shots_fired": 0, "burst_remaining": 0, "burst_time": 0.0, "last_pose": Time.get_ticks_msec(), "last_step": 0.0, "art": ""}
 
 @rpc("any_peer", "call_remote", "reliable", 0)
 func _hello(version: int, player_name: String) -> void:
@@ -346,7 +348,7 @@ func _apply_actor(id: int, state: Dictionary, event: String) -> void:
 
 func _collect_pose() -> Dictionary:
 	var p = session.player
-	return {"p": p.global_position, "v": p.velocity, "yaw": p.rotation.y, "pitch": p.view.pitch, "crouch": p.crouching, "light": p.view.flashlight_on, "art": selected_art}
+	return {"p": p.global_position, "v": p.velocity, "yaw": p.rotation.y, "pitch": p.view.pitch, "crouch": p.crouching, "slide": p.sliding, "light": p.view.flashlight_on, "art": selected_art}
 
 func _process(delta: float) -> void:
 	if not active:
@@ -424,6 +426,7 @@ func _accept_pose(id: int, data: Dictionary) -> void:
 	state.yaw = wrapf(float(data.yaw), -PI, PI)
 	state.pitch = clampf(float(data.pitch), -1.48, 1.48)
 	state.crouch = bool(data.get("crouch", false))
+	state.slide = bool(data.get("slide", false))
 	if images.textures.has(str(data.get("art", ""))):
 		state.art = str(data.art)
 	if id != 1:
@@ -433,7 +436,7 @@ func _snapshot(include_shots: bool = true) -> Dictionary:
 	var actors: Array = []
 	for state in peers.values():
 		var visible_state: Dictionary = {}
-		for key in ["id", "name", "p", "v", "yaw", "pitch", "alive", "ready", "hidden", "hide_left", "light", "battery", "crouch", "kills"]:
+		for key in ["id", "name", "p", "v", "yaw", "pitch", "alive", "ready", "hidden", "hide_left", "light", "battery", "crouch", "slide", "kills"]:
 			visible_state[key] = state[key]
 		actors.append(visible_state)
 	var enemies: Array = []
@@ -449,7 +452,7 @@ func _snapshot(include_shots: bool = true) -> Dictionary:
 	for i in range(session.world.interactables.size()):
 		if session.world.interactables[i].used:
 			used.append(i)
-	return {"time": session.survival_time, "breakers": session.breakers, "level": session.current_level, "seed": session.current_generation_seed, "mode": int(session.game_modes.selected), "players": actors, "bots": enemies, "shots": projectiles, "used": used, "refuges": session.world.refuge_charge.duplicate(), "running": game_running}
+	return {"time": session.survival_time, "breakers": session.breakers, "level": session.current_level, "seed": session.current_generation_seed, "mode": int(session.game_modes.selected), "players": actors, "bots": enemies, "shots": projectiles, "used": used, "refuges": session.world.refuge_charge.duplicate(), "running": game_running, "reward": session.post_boss.post_boss_snapshot()}
 
 @rpc("authority", "call_remote", "unreliable_ordered", 2)
 func _world_state(round_id: int, packet: PackedByteArray) -> void:
@@ -471,6 +474,7 @@ func _apply_snapshot(data: Dictionary) -> void:
 	session.survival_time = float(data.time)
 	session.breakers = int(data.breakers)
 	session.world.refuge_charge = data.refuges
+	session.post_boss.apply_network_snapshot(data.get("reward", {}))
 	for state in data.players:
 		var id = int(state.id)
 		peers[id] = state
@@ -554,35 +558,50 @@ func _art(key: String, bytes: PackedByteArray) -> void:
 					projectile.visual.texture = projectile.texture
 					projectile.visual.pixel_size = projectile.image_size / maxi(projectile.texture.get_width(), projectile.texture.get_height())
 
-func throw_local(texture: Texture2D, origin: Vector3, direction: Vector3) -> Node3D:
+func throw_local(texture: Texture2D, origin: Vector3, direction: Vector3, charge_power: float = 1.0) -> Node3D:
 	var key = _prepare_art()
 	if key.is_empty():
 		return null
 	sequence += 1
 	if is_host():
-		return _server_fire(1, sequence, key, origin, direction, Settings.projectile_size)
-	var projectile = session.projectiles.launch(texture, origin, direction, session.player, true)
+		return _server_fire(1, sequence, key, origin, direction, Settings.projectile_size, charge_power)
+	var projectile = session.projectiles.launch(texture, origin, direction, session.player, true, session.game_modes.projectile_profile(), charge_power)
 	projectile.set_meta("net_seq", sequence)
 	predicted[sequence] = projectile
-	_fire.rpc_id(1, epoch, sequence, key, origin, direction, Settings.projectile_size)
+	_fire.rpc_id(1, epoch, sequence, key, origin, direction, Settings.projectile_size, charge_power)
 	return projectile
 
 @rpc("any_peer", "call_remote", "reliable", 0)
-func _fire(round_id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float) -> void:
+func _fire(round_id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float, charge_power: float) -> void:
 	if is_host() and round_id == epoch:
-		_server_fire(multiplayer.get_remote_sender_id(), seq, key, origin, direction, size)
+		_server_fire(multiplayer.get_remote_sender_id(), seq, key, origin, direction, size, charge_power)
 
-func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float) -> Node3D:
+func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float, charge_power: float = 1.0) -> Node3D:
 	if not game_running or not peers.has(id):
 		return null
 	var state = peers[id]
 	var now = Time.get_ticks_msec() / 1000.0
-	if not state.ready or not state.alive or state.hidden or seq <= state.last_seq or now < state.next_fire - 0.045 or not images.textures.has(key) or not direction.is_finite() or direction.length() < 0.5 or not origin.is_finite() or not is_finite(size):
+	var profile: Dictionary = session.game_modes.projectile_profile()
+	var cooldown_ready: bool = now >= float(state.next_fire) - 0.045
+	var burst_ready: bool = int(state.get("burst_remaining", 0)) > 0 and now - float(state.get("burst_time", 0.0)) <= 0.15
+	if not state.ready or not state.alive or state.hidden or seq <= state.last_seq or (not cooldown_ready and not burst_ready) or not images.textures.has(key) or not direction.is_finite() or direction.length() < 0.5 or not origin.is_finite() or not is_finite(size) or not is_finite(charge_power):
 		if id != 1:
 			_reject_shot.rpc_id(id, seq)
 		return null
 	state.last_seq = seq
-	state.next_fire = now + 0.3
+	if cooldown_ready:
+		state.next_fire = now + 0.3 * float(profile.get("cooldown_multiplier", 1.0))
+		state.burst_remaining = maxi(0, int(profile.get("count", 1)) - 1)
+		state.burst_time = now
+	else:
+		state.burst_remaining = maxi(0, int(state.burst_remaining) - 1)
+	state.shots_fired = int(state.get("shots_fired", 0)) + 1
+	if int(state.shots_fired) % 5 == 0:
+		profile["trigger_damage_multiplier"] = float(profile.get("fifth_shot_multiplier", 1.0))
+	if bool(state.get("slide", false)):
+		profile["trigger_damage_multiplier"] = float(profile.get("trigger_damage_multiplier", 1.0)) * float(profile.get("sliding_damage_multiplier", 1.0))
+	if absf(float(state.v.y)) > 0.5 and Vector2(state.v.x, state.v.z).length() > 7.0:
+		profile["critical_chance"] = float(profile.get("critical_chance", 0.0)) + float(profile.get("airborne_critical_bonus", 0.0))
 	var expected = state.p + Vector3.UP * (0.92 if state.crouch else 1.62)
 	# A fast sidestep can outrun the last unreliable pose packet. Keep shots at
 	# their camera origin within a small lag allowance, after a wall-clearance ray.
@@ -595,12 +614,9 @@ func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Ve
 	var actor = actor_for(id)
 	if not is_instance_valid(actor):
 		return null
-	var projectile = session.projectiles.launch(images.textures[key], origin, direction, actor)
-	projectile.damage = 20.0
-	projectile.velocity = direction.normalized() * 35.0
-	projectile.maximum_range = 100.0
-	projectile.image_size = clampf(size, 0.2, 2.5)
-	projectile.collision_radius = clampf(size * 0.12, 0.06, 0.22)
+	var projectile = session.projectiles.launch(images.textures[key], origin, direction, actor, false, profile, clampf(charge_power, 0.2, 1.0))
+	projectile.image_size = clampf(size, 0.2, 2.5) * float(profile.get("size_multiplier", 1.0))
+	projectile.collision_radius = clampf(projectile.image_size * 0.12 * float(profile.get("hitbox_multiplier", 1.0)), 0.06, 0.38)
 	projectile.shape.radius = projectile.collision_radius
 	projectile.visual.pixel_size = projectile.image_size / maxi(projectile.texture.get_width(), projectile.texture.get_height())
 	shot_id += 1
@@ -815,6 +831,8 @@ func _server_interact(id: int, item_index: int) -> void:
 		_item.rpc(epoch, item_index, session.breakers)
 	elif item.kind == "exit" and session.breakers == 3 and session.game_modes.can_advance_level():
 		advance_level()
+	elif item.kind == "progression_lever":
+		session.post_boss.try_activate_lever()
 	elif item.kind == "hide" and state.hide_cooldown <= 0:
 		for other in peers.values():
 			if other.hidden and other.hide_item == item_index:
@@ -857,6 +875,64 @@ func _item(round_id: int, index: int, count: int) -> void:
 	if item.kind == "breaker":
 		var objective_name := "SWITCHES ACTIVATED" if session.game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT else "BREAKERS RESTORED"
 		session.ui.toast("%d / 3 %s" % [count, objective_name], 3.0)
+
+func begin_reward_phase(data: Dictionary) -> void:
+	if not is_host() or not game_running:
+		return
+	session.post_boss.start_selection(data)
+	_reward_begin.rpc(epoch, data)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func _reward_begin(round_id: int, data: Dictionary) -> void:
+	if active and not is_host() and round_id == epoch and game_running:
+		session.post_boss.start_selection(data)
+
+func request_reward_vote(choice: int) -> void:
+	if not active or choice not in [0, 1]:
+		return
+	if is_host():
+		_server_reward_vote(1, choice)
+	else:
+		_reward_vote.rpc_id(1, epoch, session.post_boss.phase_id, choice)
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func _reward_vote(round_id: int, reward_phase: int, choice: int) -> void:
+	if is_host() and round_id == epoch and reward_phase == session.post_boss.phase_id:
+		_server_reward_vote(multiplayer.get_remote_sender_id(), choice)
+
+func _server_reward_vote(id: int, choice: int) -> void:
+	if not game_running or not peers.has(id) or choice not in [0, 1]:
+		return
+	var state = peers[id]
+	if not state.ready or not state.alive or state.hidden:
+		return
+	if session.post_boss.state != PostBossRewardController.RewardState.REWARD_SELECTION:
+		return
+	if state.p.distance_to(session.post_boss.npc_position) > 8.0:
+		return
+	session.post_boss.register_vote(id, choice)
+
+func broadcast_reward_votes(reward_phase: int, current_votes: Dictionary, time_left: float) -> void:
+	if not is_host() or reward_phase != session.post_boss.phase_id:
+		return
+	session.post_boss.sync_votes(reward_phase, current_votes, time_left)
+	_reward_votes.rpc(epoch, reward_phase, current_votes, time_left)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func _reward_votes(round_id: int, reward_phase: int, current_votes: Dictionary, time_left: float) -> void:
+	if active and not is_host() and round_id == epoch:
+		session.post_boss.sync_votes(reward_phase, current_votes, time_left)
+
+func finalize_reward_phase(reward_phase: int, choice: int, reward: String) -> void:
+	if not is_host() or reward_phase != session.post_boss.phase_id:
+		return
+	session.post_boss.finalize_selection(reward_phase, choice, reward)
+	_reward_finalized.rpc(epoch, reward_phase, choice, reward)
+
+@rpc("authority", "call_remote", "reliable", 0)
+func _reward_finalized(round_id: int, reward_phase: int, choice: int, reward: String) -> void:
+	if active and not is_host() and round_id == epoch:
+		session.post_boss.finalize_selection(reward_phase, choice, reward)
 
 func on_step(loudness: float) -> void:
 	if is_host():

@@ -42,6 +42,9 @@ var ending: bool = false
 var rng := RandomNumberGenerator.new()
 var base_walk_speed: float = 0.0
 var base_sprint_speed: float = 0.0
+var base_air_acceleration: float = 0.0
+var base_slide_friction: float = 0.0
+var base_jump_velocity: float = 0.0
 var sandbox := {
 	"speed": 11.4,
 	"health": 100.0,
@@ -70,6 +73,9 @@ func setup(owner_session, tuning: GameplayConfig, stats: StatisticsManager) -> v
 	rng.randomize()
 	base_walk_speed = session.player.walk_speed
 	base_sprint_speed = session.player.sprint_speed
+	base_air_acceleration = session.player.air_acceleration
+	base_slide_friction = session.player.slide_friction
+	base_jump_velocity = session.player.jump_velocity
 	sandbox.auto_spawn_interval = config.sandbox_auto_spawn_interval
 	sandbox.auto_spawn_limit = config.sandbox_auto_spawn_limit
 
@@ -97,8 +103,12 @@ func start_run() -> void:
 	ending = false
 	mayhem_waiting_for_upgrade = false
 	offered_upgrades.clear()
+	modifiers.reset()
 	session.player.walk_speed = base_walk_speed
 	session.player.sprint_speed = base_sprint_speed
+	session.player.air_acceleration = base_air_acceleration
+	session.player.slide_friction = base_slide_friction
+	session.player.jump_velocity = base_jump_velocity
 	match selected:
 		GameplayMode.ARCADE:
 			arcade_round += 1
@@ -111,7 +121,6 @@ func start_run() -> void:
 			# The old nine-second delay made a healthy run look empty or broken.
 			session.spawn_timer = minf(session.spawn_timer, 2.0)
 		GameplayMode.PNG_MAYHEM:
-			modifiers.reset()
 			mayhem_wave = 0
 			mayhem_total_score = 0
 			mayhem_multiplier = 1.0
@@ -223,19 +232,26 @@ func enemy_defeated(bot: NextbotEnemy) -> void:
 		GameplayMode.ARCADE:
 			arcade_score += 250.0 * arcade_multiplier
 			arcade_multiplier = minf(5.0, arcade_multiplier + 0.25)
+		GameplayMode.ENDLESS:
+			if bot.is_boss:
+				session.post_boss.begin_after_boss.call_deferred()
 		GameplayMode.PNG_MAYHEM:
 			mayhem_wave_kills += 1
 			mayhem_total_score += roundi(100.0 * mayhem_multiplier * (10.0 if bot.is_boss else 1.0))
 			mayhem_multiplier = minf(8.0, mayhem_multiplier + 0.1)
 			if mayhem_wave_kills >= mayhem_wave_target:
 				statistics.record_maximum("best_completed_wave", mayhem_wave)
-				_show_upgrades.call_deferred()
+				if bot.is_boss:
+					mayhem_waiting_for_upgrade = true
+					session.post_boss.begin_after_boss.call_deferred()
+				else:
+					_show_upgrades.call_deferred()
 		GameplayMode.BOSSFIGHT:
 			if bot.is_boss and is_bossfight_boss_level():
 				bossfight_boss_pending = false
 				active_boss = null
-				session.ui.toast("BOSS DEFEATED\nTHE NEXT CYCLE IS OPEN", 4.0)
-				session.advance_level.call_deferred()
+				session.ui.toast("BOSS DEFEATED\nCHOOSE YOUR REWARD", 4.0)
+				session.post_boss.begin_after_boss.call_deferred()
 
 func _show_upgrades() -> void:
 	if ending or selected != GameplayMode.PNG_MAYHEM:
@@ -264,11 +280,17 @@ func choose_upgrade(index: int) -> void:
 func _apply_player_tuning() -> void:
 	session.player.walk_speed = base_walk_speed * modifiers.movement_multiplier
 	session.player.sprint_speed = base_sprint_speed * modifiers.movement_multiplier
+	session.player.air_acceleration = base_air_acceleration * modifiers.air_acceleration_multiplier
+	session.player.slide_friction = base_slide_friction * modifiers.slide_friction_multiplier
+	session.player.jump_velocity = base_jump_velocity * modifiers.jump_multiplier
 
 func _restore_player_tuning() -> void:
 	if is_instance_valid(session) and is_instance_valid(session.player):
 		session.player.walk_speed = base_walk_speed
 		session.player.sprint_speed = base_sprint_speed
+		session.player.air_acceleration = base_air_acceleration
+		session.player.slide_friction = base_slide_friction
+		session.player.jump_velocity = base_jump_velocity
 
 func should_respawn_enemy(bot: NextbotEnemy) -> bool:
 	if bot.is_boss or bot.event_spawned:
@@ -306,21 +328,26 @@ func player_invincible() -> bool:
 	return bool(sandbox.invincible) if selected == GameplayMode.SANDBOX else false
 
 func consume_shield() -> bool:
-	return selected == GameplayMode.PNG_MAYHEM and modifiers.consume_shield()
+	return modifiers.consume_shield()
 
 func projectile_profile() -> Dictionary:
-	if selected != GameplayMode.PNG_MAYHEM:
-		return {}
-	return {
-		"damage_multiplier": modifiers.damage_multiplier,
-		"cooldown_multiplier": modifiers.cooldown_multiplier,
-		"count": modifiers.projectile_count,
-		"explosion_radius": modifiers.explosion_radius,
-		"freeze_seconds": modifiers.freeze_seconds,
-		"piercing": modifiers.piercing,
-		"ricochets": modifiers.ricochets,
-		"critical_chance": modifiers.critical_chance,
-	}
+	return modifiers.projectile_profile()
+
+func apply_run_reward(reward: String) -> bool:
+	if not modifiers.apply(reward):
+		return false
+	_apply_player_tuning()
+	return true
+
+func restore_run_rewards(data: Dictionary) -> void:
+	modifiers.restore(data)
+	_apply_player_tuning()
+
+func post_reward_without_lever() -> void:
+	if selected == GameplayMode.PNG_MAYHEM:
+		mayhem_waiting_for_upgrade = false
+		mayhem_next_wave_delay = 1.0
+		mayhem_wave_pending = true
 
 func arcade_finished() -> Dictionary:
 	var result = {"round": arcade_round, "score": roundi(arcade_score), "survival": config.arcade_round_seconds}
@@ -353,6 +380,11 @@ func objective_text() -> String:
 		GameplayMode.PNG_MAYHEM: return "CLEAR THE WAVE  /  THROW PNGs"
 		GameplayMode.SANDBOX: return "AUTO %s  /  %d ACTIVE  /  F2 LIVE CONTROLS" % ["ON" if bool(sandbox.auto_spawn) else "OFF", session.bots.size()]
 		GameplayMode.BOSSFIGHT:
+			if is_instance_valid(session.post_boss):
+				if session.post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION:
+					return "CHOOSE A REWARD  /  LEFT HAND OR RIGHT HAND"
+				if session.post_boss.state == PostBossRewardController.RewardState.PROGRESSION_UNLOCKED:
+					return "PULL THE LEVER BEHIND THE REWARD KEEPER"
 			if is_bossfight_boss_level():
 				return "DEFEAT THE BOSS  /  %d HP" % bossfight_boss_health()
 			return "SWITCHES %d / 3  ->  %s" % [session.breakers, session.world.objective_destination if session.breakers == 3 else "SEARCH THE DISTRICT"]
@@ -438,6 +470,8 @@ func sandbox_action(action: String, value = null) -> void:
 			session._clear_bots()
 		"event":
 			session.events.request_random_event(true)
+		"reward":
+			session.post_boss.begin_sandbox_test()
 		"regenerate":
 			session.regeneration_serial += 1
 			session._transition_to_level(4, session._seed_for_level(4, session.regeneration_serial))

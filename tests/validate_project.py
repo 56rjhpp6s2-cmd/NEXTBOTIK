@@ -80,11 +80,17 @@ def syntax_shape(source):
     """
     output = []
     matches = []
+    in_enum_block = False
     for line in source.splitlines():
         indent = len(line) - len(line.lstrip("\t"))
         stripped = line.lstrip("\t")
         if not stripped or stripped.startswith("#"):
             output.append(line)
+            continue
+        if in_enum_block:
+            output.append("\t" * indent + "# " + stripped)
+            if "}" in stripped:
+                in_enum_block = False
             continue
         while matches and indent <= matches[-1]:
             matches.pop()
@@ -105,7 +111,9 @@ def syntax_shape(source):
         if stripped.startswith(("extends ", "class_name ", "signal ")):
             stripped = "pass  # " + stripped
         if stripped.startswith("enum "):
-            stripped = stripped.split()[1] + " = None"
+            enum_name = stripped.split()[1].rstrip("{")
+            in_enum_block = "{" in stripped and "}" not in stripped
+            stripped = enum_name + " = None"
         stripped = re.sub(r"\btrue\b", "True", stripped)
         stripped = re.sub(r"\bfalse\b", "False", stripped)
         stripped = re.sub(r"\bnull\b", "None", stripped)

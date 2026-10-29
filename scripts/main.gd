@@ -53,6 +53,7 @@ var gameplay_config: GameplayConfig = preload("res://resources/gameplay_config.t
 var statistics: StatisticsManager
 var game_modes: GameModeManager
 var events: RandomEventManager
+var post_boss: PostBossRewardController
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -141,6 +142,9 @@ func _setup_gameplay() -> void:
 	events.name = "RandomEventManager"
 	add_child(events)
 	events.setup(self, gameplay_config)
+	post_boss = PostBossRewardController.new()
+	post_boss.setup(self)
+	add_child(post_boss)
 	ui.mode_selected.connect(_select_game_mode)
 	ui.upgrade_selected.connect(game_modes.choose_upgrade)
 	ui.sandbox_action.connect(game_modes.sandbox_action)
@@ -348,12 +352,27 @@ func _capture_bossfight() -> void:
 		boss._change_state(NextbotEnemy.State.ATTACK)
 	await get_tree().process_frame
 	await _capture("bossfight_arena_attack")
+	if is_instance_valid(boss):
+		boss.combat.health.apply_damage(boss.combat.health.current_health, player, boss.global_position)
+	for frame in range(180):
+		if post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION:
+			break
+		await get_tree().physics_frame
+	player.reset_at(Vector3(0, 0.1, 5.2))
+	_look_at_point(post_boss.npc_position + Vector3.UP * 1.45)
+	await get_tree().create_timer(0.4).timeout
+	await _capture("bossfight_reward_selection")
+	post_boss._finalize_authoritative(0)
+	player.reset_at(Vector3(4.2, 0.1, 3.8))
+	_look_at_point(post_boss.npc_position + Vector3.UP * 1.15)
+	await get_tree().create_timer(0.5).timeout
+	await _capture("bossfight_reward_lever")
 	get_tree().quit()
 
 func _look_at_point(point: Vector3) -> void:
 	var direction := point - player.view.camera.global_position
 	player.rotation.y = atan2(-direction.x, -direction.z)
-	player.view.pitch = atan2(direction.y, Vector2(direction.x, direction.z).length())
+	player.view.pitch = -atan2(direction.y, Vector2(direction.x, direction.z).length())
 	player.view.rotation.x = player.view.pitch
 
 func _capture_network() -> void:
@@ -537,6 +556,7 @@ func _action(action: String) -> void:
 			ui.toggle_sandbox_tools()
 			player.active = false
 		"sandbox_spawn": game_modes.sandbox_action("spawn")
+		"sandbox_reward": game_modes.sandbox_action("reward")
 		"sandbox_remove": game_modes.sandbox_action("remove")
 		"sandbox_event": game_modes.sandbox_action("event")
 		"sandbox_regenerate":
@@ -571,6 +591,7 @@ func start_run(force_new: bool = false, starting_level: int = 1, seed_value: int
 		return
 	get_tree().paused = false
 	events.end_event()
+	post_boss.reset_run()
 	game_modes.before_start()
 	_clear_bots()
 	var progression_mode := game_modes.selected in [GameModeManager.GameplayMode.ENDLESS, GameModeManager.GameplayMode.BOSSFIGHT]
@@ -647,6 +668,7 @@ func return_to_menu() -> void:
 		_record_run()
 	get_tree().paused = false
 	events.end_event()
+	post_boss.reset_run()
 	game_modes.finish_run()
 	mode = Mode.MENU
 	_clear_bots()
@@ -689,12 +711,24 @@ func enemy_defeated(bot: NextbotEnemy, source: Node) -> void:
 	defeated_bots.append(bot)
 	events.enemy_defeated(bot)
 	game_modes.enemy_defeated(bot)
+	if game_modes.modifiers.death_explosion_radius > 0.0:
+		_trigger_reward_death_burst.call_deferred(bot.global_position, bot, source)
 	if network.active:
 		network.award_kill(source)
 	elif source == player:
 		kill_count += 1
 	if game_modes.should_respawn_enemy(bot):
 		pending_respawns.append({"remaining": maxf(0.05, bot.respawn_delay), "stats": {"max_health": bot.max_health, "respawn_delay": bot.respawn_delay, "face_variant": bot.face_variant}})
+
+func _trigger_reward_death_burst(at: Vector3, defeated: NextbotEnemy, source: Node) -> void:
+	if not is_running() or not is_authority():
+		return
+	damage_system.impact(at + Vector3.UP, false)
+	for other in bots.duplicate():
+		if other == defeated or not is_instance_valid(other) or other.combat.dead or other.global_position.distance_to(at) > game_modes.modifiers.death_explosion_radius:
+			continue
+		var direction: Vector3 = (other.global_position - at).normalized()
+		damage_system.apply_hit(other, 45.0, source, other.global_position + Vector3.UP, direction)
 
 func _forget_enemy(bot: NextbotEnemy) -> void:
 	bots.erase(bot)
@@ -855,6 +889,10 @@ func _update_interaction() -> void:
 	var best_score: float = -1.0
 	var eye = player.view.camera.global_position
 	var forward = -player.view.camera.global_basis.z
+	var reward_prompt := post_boss.update_focus(player.view.camera)
+	if not reward_prompt.is_empty():
+		interaction_prompt = reward_prompt
+		return
 	for item in world.interactables:
 		if item.used or not item.active:
 			continue
@@ -876,6 +914,8 @@ func _update_interaction() -> void:
 		interaction_prompt = focused_item.prompt(breakers)
 
 func _interact() -> void:
+	if post_boss.interact_focused():
+		return
 	if network.active:
 		network.request_interact(-1 if player.hidden or focused_item == null else world.interactables.find(focused_item))
 		return
@@ -910,6 +950,8 @@ func _interact() -> void:
 				advance_level()
 			else:
 				ui.toast("ACTIVATE ALL THREE SWITCHES FIRST." if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT else "RESTORE ALL THREE BREAKERS FIRST.", 2.0)
+		"progression_lever":
+			post_boss.try_activate_lever()
 		"hide":
 			if hide_cooldown > 0:
 				ui.toast("CATCH YOUR BREATH BEFORE HIDING AGAIN.", 2.0)
@@ -1031,6 +1073,7 @@ func _transition_to_level(next_level: int, seed_value: int, animate: bool = true
 	if transition_in_progress:
 		return false
 	transition_in_progress = true
+	post_boss.begin_level_transition()
 	events.end_event()
 	mode = Mode.TRANSITION
 	player.active = false
@@ -1114,6 +1157,7 @@ func complete_level_transition(spawn_enemies: bool = true, animate: bool = true)
 	mode = Mode.PLAYING
 	player.active = true
 	player.network_alive = true
+	post_boss.level_ready()
 	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
 		game_modes.bossfight_level_ready()
 	for bot in staged_bots:

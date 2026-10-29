@@ -29,6 +29,9 @@ extends Resource
 @export_range(1, 12, 1) var bossfight_starting_nextbots: int = 2
 @export_range(1, 16, 1) var bossfight_maximum_nextbots: int = 8
 
+@export_group("Post-boss rewards")
+@export_range(5.0, 60.0, 1.0) var reward_vote_seconds: float = 20.0
+
 @export_group("Sandbox")
 @export_range(0.5, 30.0, 0.5) var sandbox_auto_spawn_interval: float = 4.0
 @export_range(1, 32, 1) var sandbox_auto_spawn_limit: int = 12
