@@ -2,7 +2,7 @@
 
 A first-person Nextbots horror-action game for Windows and Android, built in Godot 4.5+ with GDScript. Choose **Arcade**, **Endless**, **PNG Mayhem**, **Sandbox** or **Bossfight**, then enter an abandoned underground complex, a gm_construct-style outdoor arena, or Bossfight's dedicated desert district. Endless retains the objective-driven descent and generates a new modular labyrinth from Level 4 onward. Sandbox includes manual spawning plus configurable automatic spawning, batch size, interval and active-enemy limit.
 
-You can fight back by throwing PNG images. Import your own transparent PNGs during a run, switch images with the mouse wheel, aim, and defeat enemies with five standard hits. Both maps retain their movement, chases, objectives, jumpscare and respawn systems.
+You can fight back by throwing PNG images and three bundled school items. Import your own transparent PNGs during a run, switch items with the mouse wheel and aim. The photographed regular enemies now have exclusive weaknesses: the test tube damages Elena Finkelshteyn, the literature textbook damages pink-background Kogan, and the Constitution damages the black-and-white Nextbot. Both maps retain their movement, chases, objectives, jumpscare and respawn systems.
 
 Cooperative multiplayer supports up to eight players in **Endless and Bossfight**. Windows supports LAN, direct IP and Radmin VPN; Android adds automatic host discovery on the same Wi-Fi/LAN and direct-IP joining. The default UDP port is **24577**. See [MULTIPLAYER.md](MULTIPLAYER.md) for the synchronized game rules and [ANDROID.md](ANDROID.md) for installation, touch controls and mobile networking.
 
@@ -51,7 +51,7 @@ The pool includes weighted Common through Legendary projectile, movement, defens
 
 The supplied `assets/bosses/bossfight_idle.jpg` is the boss's normal billboard. During its charge and direct attack it switches to `bossfight_attack.jpg`; that aggressive image is also active when the boss catches the player. Both source photographs are bundled unchanged.
 
-Bossfight is fully cooperative: the host synchronizes the selected mode, level seed, randomized switches and every transition. On Sun Ring levels the host owns boss AI and damage; guests receive the same 4,000 + 500 HP scaling, boss bar and idle/attack photographs. After victory every eligible player votes for the left or right hand during a 20-second server-authoritative vote. Votes can be changed; majority wins, and ties or no votes resolve through authoritative random selection. Everyone receives the same reward, then the shared lever unlocks and performs one synchronized transition. Late join receives the current reward phase, vote state, run modifiers, Bossfight level and seed. All players must use the same current build because this data is part of network protocol 6.
+Bossfight is fully cooperative: the host synchronizes the selected mode, level seed, randomized switches and every transition. On Sun Ring levels the host owns boss AI and damage; guests receive the same 4,000 + 500 HP scaling, boss bar and idle/attack photographs. After victory every eligible player votes for the left or right hand during a 20-second server-authoritative vote. Votes can be changed; majority wins, and ties or no votes resolve through authoritative random selection. Everyone receives the same reward, then the shared lever unlocks and performs one synchronized transition. Late join receives the current reward phase, vote state, run modifiers, Bossfight level and seed. All players must use the same current build because item types and reward state are part of network protocol 7.
 
 ## Controls
 
@@ -87,7 +87,7 @@ The file picker accepts **PNG, JPG and JPEG**. JPEG images are converted to PNG 
 
 The current **Без имени.png** is also bundled under `assets/projectiles/` and selected on a fresh installation, with a 1.3 m projectile size. Its bytes are preserved. The three original PNGs remain available; a missing bundled copy restores automatically, and selection changes are saved immediately. Images and the enemy face travel with the game pack rather than relying on the creator's Windows profile.
 
-Default throws deal **20 damage**, travel at **35 m/s**, have a **0.3-second cooldown** and a **100-meter maximum range**. Ammunition is unlimited by default. A 100-HP Nextbot dies in five hits; health bars, damage numbers, hitmarkers and kill counts show the result. Dead enemies cannot attack and respawn after ten seconds by default. If unlimited ammunition is disabled, the magazine holds 12 PNGs and R reloads from unlimited reserves.
+Default throws deal **20 damage**, travel at **35 m/s**, have a **0.3-second cooldown** and a **100-meter maximum range**. Ammunition is unlimited by default. A matching item kills a 100-HP regular Nextbot in five hits; a wrong item deals no damage and displays the required weakness. Bosses and custom Sandbox faces still accept ordinary PNG damage. Health bars, damage numbers, hitmarkers and kill counts show the result. Dead enemies cannot attack and respawn after ten seconds by default. If unlimited ammunition is disabled, the magazine holds 12 projectiles and R reloads from unlimited reserves.
 
 See [COMBAT.md](COMBAT.md) for image limits, configuration, component APIs and testing.
 

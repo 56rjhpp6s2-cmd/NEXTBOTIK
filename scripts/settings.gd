@@ -88,7 +88,7 @@ func automated_run() -> bool:
 	return not automated_tag().is_empty()
 
 func automated_tag() -> String:
-	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--modes-test", "--bossfight-test", "--mobile-test", "--capture-construct", "--capture-combat", "--capture-bossfight", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
+	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--modes-test", "--bossfight-test", "--mobile-test", "--throwables-test", "--capture-construct", "--capture-combat", "--capture-bossfight", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
 		if flag in OS.get_cmdline_user_args():
 			return flag.trim_prefix("--")
 	return ""

@@ -52,6 +52,26 @@ func impact(point: Vector3, enemy_hit: bool = false, damage: float = 0.0) -> voi
 		tween.parallel().tween_property(number, "modulate:a", 0.0, 0.4).set_delay(0.25)
 		tween.tween_callback(number.queue_free)
 
+func immune_impact(point: Vector3, message: String) -> void:
+	_particles(point, Color("ffd66b"), 14, 0.3, 0.11)
+	Sound.spatial("png_wall", self, point, -14.0)
+	var label := Label3D.new()
+	label.text = message
+	label.font_size = 34
+	label.pixel_size = 0.006
+	label.modulate = Color("ffd66b")
+	label.outline_modulate = Color("12181d")
+	label.outline_size = 9
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	add_child(label)
+	label.global_position = point + Vector3.UP * 0.35
+	var tween := label.create_tween()
+	tween.tween_property(label, "position:y", label.position.y + 0.7, 0.75).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.35)
+	tween.tween_callback(label.queue_free)
+	if is_instance_valid(session.ui):
+		session.ui.toast(message, 1.6)
+
 func death_effect(point: Vector3) -> void:
 	_particles(point, Color("b5f1df"), 34, 0.65, 0.55)
 

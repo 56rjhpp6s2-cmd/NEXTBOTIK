@@ -1,6 +1,7 @@
 class_name PNGProjectile
 extends Node3D
 ## A camera-facing image with a continuous swept volume, not a frame-only overlap.
+const ThrowableItems = preload("res://scripts/combat/throwable_item_registry.gd")
 @export var damage: float = 20.0
 @export var speed: float = 35.0
 @export var maximum_range: float = 100.0
@@ -17,6 +18,7 @@ var spent: bool = false
 var visual_only: bool = false
 var visual: Sprite3D
 var texture: Texture2D
+var item_kind: String = ThrowableItems.STANDARD
 var image_size: float = 0.75
 var collision_radius: float = 0.09
 var shape = SphereShape3D.new()
@@ -125,7 +127,10 @@ func _impact(hit: Dictionary) -> void:
 	var receiver = damage_system.receiver_for(collider)
 	var target_id = receiver.get_instance_id() if is_instance_valid(receiver) else 0
 	var applied: float = 0.0
-	if target_id == 0 or not hit_targets.has(target_id):
+	var wrong_item: bool = target_id != 0 and not ThrowableItems.can_damage(receiver, item_kind)
+	if wrong_item:
+		damage_system.immune_impact(hit.position, ThrowableItems.required_title(receiver))
+	elif target_id == 0 or not hit_targets.has(target_id):
 		applied = damage_system.apply_hit(collider, damage, shooter, hit.position, velocity.normalized())
 		if applied > 0.0:
 			hit_targets[target_id] = true
@@ -133,7 +138,7 @@ func _impact(hit: Dictionary) -> void:
 				receiver.apply_stun(freeze_seconds)
 	if explosion_radius > 0.0:
 		_explode(hit.position)
-	if applied <= 0.0:
+	if applied <= 0.0 and not wrong_item:
 		damage_system.impact(hit.position)
 		Sound.spatial("png_wall", damage_system, hit.position, -18.0)
 	if applied > 0.0 and piercing_remaining > 0:
@@ -143,7 +148,7 @@ func _impact(hit: Dictionary) -> void:
 		global_position = hit.position + velocity.normalized() * maxf(0.08, collision_radius * 1.5)
 		travelled += maxf(0.08, collision_radius * 1.5)
 		return
-	if applied <= 0.0 and ricochets_remaining > 0 and hit.has("normal"):
+	if applied <= 0.0 and not wrong_item and ricochets_remaining > 0 and hit.has("normal"):
 		var normal: Vector3 = hit.normal
 		if normal.length_squared() > 0.1:
 			ricochets_remaining -= 1
@@ -162,6 +167,8 @@ func _explode(point: Vector3) -> void:
 	damage_system.impact(point, false)
 	for bot in session.bots.duplicate():
 		if not is_instance_valid(bot) or bot.global_position.distance_to(point) > explosion_radius:
+			continue
+		if not ThrowableItems.can_damage(bot, item_kind):
 			continue
 		var target_id = bot.get_instance_id()
 		if hit_targets.has(target_id):

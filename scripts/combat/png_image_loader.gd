@@ -4,11 +4,15 @@ extends Node
 signal library_changed
 signal image_selected(entry: Dictionary)
 signal notice(message: String)
+const ThrowableItems = preload("res://scripts/combat/throwable_item_registry.gd")
 const DEFAULTS = {
 	"BZ_anomaly.png": "res://assets/projectiles/anomaly.png",
 	"BZ_warning.png": "res://assets/projectiles/warning.png",
 	"BZ_star.png": "res://assets/projectiles/star.png",
-	"Без имени.png": "res://assets/projectiles/Без имени.png"
+	"Без имени.png": "res://assets/projectiles/Без имени.png",
+	"BZ_test_tube.png": "res://assets/projectiles/test_tube.png",
+	"BZ_literature_book.png": "res://assets/projectiles/literature_book.png",
+	"BZ_constitution.png": "res://assets/projectiles/constitution.png",
 }
 const MAX_BYTES: int = 67108864
 const MAX_PIXELS: int = 67108864
@@ -80,7 +84,7 @@ func refresh(force: bool = false) -> void:
 					var image: Image = decoded.image
 					var dimensions = image.get_size()
 					_fit(image, 256)
-					cache[path] = {"signature": signature, "error": "", "entry": {"path": path, "name": filename.get_basename(), "filename": filename, "dimensions": dimensions, "preview": ImageTexture.create_from_image(image)}}
+					cache[path] = {"signature": signature, "error": "", "entry": _entry(path, filename, dimensions, ImageTexture.create_from_image(image))}
 			if not cache[path].error.is_empty():
 				errors.append(filename + ": " + cache[path].error)
 			else:
@@ -100,7 +104,7 @@ func refresh(force: bool = false) -> void:
 			var path: String = DEFAULTS[filename]
 			var texture = load(path) as Texture2D
 			if texture != null:
-				next_entries.append({"path": path, "name": filename.get_basename(), "filename": filename, "dimensions": Vector2i(texture.get_width(), texture.get_height()), "preview": texture})
+				next_entries.append(_entry(path, filename, Vector2i(texture.get_width(), texture.get_height()), texture))
 	entries = next_entries
 	selected_index = 0
 	for i in range(entries.size()):
@@ -123,6 +127,21 @@ func _signature() -> String:
 
 func current_entry() -> Dictionary:
 	return entries[selected_index] if not entries.is_empty() else {}
+
+func current_item_kind() -> String:
+	return ThrowableItems.kind_for_filename(str(current_entry().get("filename", "")))
+
+func _entry(path: String, filename: String, dimensions: Vector2i, preview: Texture2D) -> Dictionary:
+	var definition: Dictionary = ThrowableItems.definition_for_filename(filename)
+	return {
+		"path": path,
+		"name": str(definition.get("title", filename.get_basename())),
+		"filename": filename,
+		"dimensions": dimensions,
+		"preview": preview,
+		"item_kind": str(definition.get("kind", ThrowableItems.STANDARD)),
+		"description": str(definition.get("description", "")),
+	}
 
 func select(index: int) -> void:
 	if entries.is_empty():

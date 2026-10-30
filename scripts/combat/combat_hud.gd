@@ -293,7 +293,8 @@ func _selected(entry: Dictionary) -> void:
 	preview.texture = images.current_texture()
 	image_name.text = entry.name
 	image_name.tooltip_text = entry.filename
-	details.text = "%s\n%d × %d pixels / transparency preserved" % [entry.filename, entry.dimensions.x, entry.dimensions.y]
+	var description := str(entry.get("description", ""))
+	details.text = "%s\n%d × %d pixels / transparency preserved%s" % [entry.filename, entry.dimensions.x, entry.dimensions.y, "\n" + description if not description.is_empty() else ""]
 	if image_list.item_count > images.selected_index:
 		image_list.select(images.selected_index)
 

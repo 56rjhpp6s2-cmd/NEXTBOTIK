@@ -132,8 +132,16 @@ Remaining limitations: no sustained frame-rate benchmark or listening test. The 
 
 ## Android build and mobile online verification (2026-10-30)
 
-- Godot 4.5.1 exported `build/BELOW_ZERO_Android.apk` successfully through the reproducible `tools/Build-Android.ps1` entry point. The resulting debug APK is 32,896,921 bytes, package `com.nextbotik.belowzero`, version `1.1.0` / code `2`, target SDK 35 and ARM64-only.
+- Godot 4.5.1 exported `build/BELOW_ZERO_Android.apk` successfully through the reproducible `tools/Build-Android.ps1` entry point. The latest debug APK is 33,017,208 bytes, package `com.nextbotik.belowzero`, version `1.2.0` / code `3`, target SDK 35 and ARM64-only.
 - Android SDK `aapt2` confirmed the launcher activity and the network/Wi-Fi/vibration permissions. `apksigner verify --verbose` confirmed APK Signature Scheme v2 and v3 with one RSA-2048 debug signer.
 - The mobile integration suite passed **12/12** checks: touch HUD creation, analog joystick input/release, touch look, projectile press/release, direct left/right post-boss reward selection, ENet hosting and automatic UDP Wi-Fi/LAN discovery response.
 - The static suite passed **17/17** checks. The two-process Endless ENet regression passed **26/26 host** and **42/42 client** checks; Bossfight passed **18/18 host** and **22/22 client** checks after the mobile discovery/menu changes.
 - No Android device or emulator was connected (`adb devices` returned no devices), so physical-device installation, rendered touch ergonomics, Android system file picker behavior and device performance remain manual checks. The test APK is debug-signed and is not a Google Play release artifact.
+
+## Face-specific throwable items (2026-10-30)
+
+- Added transparent test-tube, literature-textbook and Constitution projectiles to the persistent PNG library. Their editable SVG sources and generated 512×512 PNGs are bundled in desktop, friend-package and Android exports.
+- Ordinary photographed enemies now reject the wrong projectile with zero damage and a readable requirement message. Elena Finkelshteyn accepts the test tube, pink-background Kogan accepts the literature textbook, and the original black-and-white face accepts the Constitution. Matching hits retain the normal 20 HP damage. Bosses and custom Sandbox faces remain compatible with arbitrary PNGs.
+- Dedicated item regression: **20/20** checks. Full combat: **129/129**. Modes: **76/76**. Bossfight: **54/54**. Static validation: **17/17**. Two-process Endless networking: **26/26 host + 42/42 client**; Bossfight: **18/18 host + 22/22 client**.
+- Network protocol is now **7** so the authoritative host receives the typed throwable with every shot. The Windows release executable booted successfully; Android APK Signature Schemes v2/v3 verified; the friend archive was rebuilt with the current PCK and instructions.
+- Final generated artifacts: Windows EXE SHA-256 `606E38DBE8812FBD0FA19418BA175846E0EBADC30D08F1A70A5EF229D1F598DC`; Android APK `FEC45FA3041BE68B818C9C0D62C0D03D470D7EBF49C3B1B366962C9377878149`; friend ZIP `198F48CCE3C029BEC1A0A4007435AE2D42845D7627C3E8A00851815E387D9394`.

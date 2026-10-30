@@ -104,6 +104,9 @@ func _ready() -> void:
 	elif "--mobile-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/mobile_test.gd").new()
 		test_runner.run.call_deferred(self)
+	elif "--throwables-test" in OS.get_cmdline_user_args():
+		test_runner = load("res://tests/throwables_test.gd").new()
+		test_runner.run.call_deferred(self)
 	elif "--movement-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/movement_test.gd").new()
 		test_runner.run.call_deferred(self)

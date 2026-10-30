@@ -44,6 +44,7 @@ This file is the durable implementation checklist for the master overhaul. Check
 - [x] Android ARM64 export profile, signed APK, landscape touch controls and mobile-safe display settings.
 - [x] Android/Wi-Fi online flow with automatic LAN host discovery, direct-IP fallback and authoritative cross-platform ENet gameplay.
 - [x] Android manifest/signature validation plus a 12-check mobile input and LAN-discovery integration test.
+- [x] Three transparent school throwables with data-defined face weaknesses: test tube for Elena, literature textbook for pink-background Kogan and Constitution for the black-and-white Nextbot.
 
 ## Remaining master-task work after this milestone
 

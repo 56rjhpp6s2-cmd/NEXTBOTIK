@@ -1,5 +1,6 @@
 extends RefCounted
 ## Exercises the real weapon, continuous physics queries, enemies, library and UI.
+const ThrowableItems = preload("res://scripts/combat/throwable_item_registry.gd")
 var failures: Array[String] = []
 var checks: int = 0
 var confirmed_hits: int = 0
@@ -47,6 +48,8 @@ func run(game) -> void:
 	images.select_filename("BZ_anomaly.png")
 	var texture: Texture2D = images.current_texture()
 	check(texture != null and texture.get_image().get_pixel(0, 0).a < 0.01, "Actual PNG texture retains transparency")
+	images.select_filename("BZ_test_tube.png")
+	check(images.current_item_kind() == ThrowableItems.TEST_TUBE, "Bundled test tube is available as a typed throwable")
 	for action in ["throw_png", "aim_png", "reload_png", "next_png", "previous_png", "png_library", "reward_left", "interact"]:
 		check(InputMap.has_action(action) and not InputMap.action_get_events(action).is_empty(), "Combat input bound: " + action)
 	var old_index: int = images.selected_index
@@ -168,7 +171,7 @@ func run(game) -> void:
 func _test_collision(game) -> void:
 	var weapon = game.projectiles
 	game.player.reset_at(Vector3(60, 0.1, 84))
-	var bot = game._spawn_bot(Vector3(60, 0.1, 96), {"max_health": 200.0})
+	var bot = game._spawn_bot(Vector3(60, 0.1, 96), {"max_health": 200.0, "face_variant": 1})
 	await frames(game, 8)
 	bot.enabled = false
 	_aim(game, bot.global_position + Vector3.UP * 1.2)
@@ -193,7 +196,7 @@ func _test_collision(game) -> void:
 	await frames(game, 3)
 	check(bot.combat.health.current_health == 160, "Visible forehead above the AI capsule can be hit")
 	weapon.projectile_speed = 35
-	var duplicate = weapon.launch(game.png_images.current_texture(), game.player.view.camera.global_position, Vector3.BACK)
+	var duplicate = weapon.launch(game.png_images.current_texture(), game.player.view.camera.global_position, Vector3.BACK, null, false, {}, 1.0, ThrowableItems.TEST_TUBE)
 	duplicate.set_physics_process(false)
 	var hit = {"collider": bot, "position": bot.global_position + Vector3.UP, "normal": Vector3.FORWARD}
 	duplicate._impact(hit)

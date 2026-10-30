@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <g transform="rotate(12 256 256)">
+    <rect x="96" y="70" width="320" height="372" rx="18" fill="#7d2439" stroke="#f2d69b" stroke-width="14"/>
+    <path d="M132 76v360M150 112h229M150 392h229" stroke="#dcae67" stroke-width="10"/>
+    <rect x="163" y="142" width="205" height="126" rx="9" fill="#f3dfb0"/>
+    <text x="265" y="193" text-anchor="middle" font-family="sans-serif" font-size="29" font-weight="700" fill="#602033">УЧЕБНИК</text>
+    <text x="265" y="235" text-anchor="middle" font-family="sans-serif" font-size="25" font-weight="700" fill="#602033">ЛИТЕРАТУРЫ</text>
+    <path d="M195 325c43-48 87 47 141-7-45 67-91-27-141 7z" fill="#f2d69b"/>
+  </g>
+</svg>

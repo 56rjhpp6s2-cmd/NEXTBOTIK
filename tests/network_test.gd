@@ -109,7 +109,7 @@ func host_test() -> void:
 	check(game.network.peers[id].kills == 1, "Server awards the kill to the correct client")
 	check(game.kill_count == 0, "Client kill does not increase host score")
 	check(game.projectiles.hit_time == 0, "Host does not receive the client's hitmarker")
-	var key = str(shot_result.get("art", ""))
+	var key = str(shot_result.get("custom_art", ""))
 	check(game.network.images.textures.has(key), "Custom PNG is uploaded to server")
 	if game.network.images.textures.has(key):
 		check(game.network.images.textures[key].get_image().get_pixel(0, 0).a < 0.01, "Network PNG upload preserves transparency")
@@ -117,9 +117,11 @@ func host_test() -> void:
 	check(game.bots.size() == 1 and game.bots[0].combat.health.current_health == 100, "Server respawns a killed network enemy with full HP")
 	game._clear_bots()
 	await frames(3)
-	var host_target = game._spawn_bot(Vector3(70, 0.1, 96))
+	var host_target = game._spawn_bot(Vector3(70, 0.1, 96), {"face_variant": 2})
 	await frames(6)
 	host_target.enabled = false
+	game.png_images.select_filename("BZ_literature_book.png")
+	await frames(3)
 	write_state("host", "host_shot_prepare", {"bot": host_target.bot_index})
 	await wait_stage("client", "host_shot_ready")
 	var direction = host_target.global_position + Vector3.UP * 1.4 - game.player.view.camera.global_position
@@ -246,6 +248,9 @@ func client_test() -> void:
 	game.png_images.refresh(true)
 	game.png_images.select_filename("network_test_custom.png")
 	await frames(6)
+	var custom_key = game.network.selected_art
+	game.png_images.select_filename("BZ_literature_book.png")
+	await frames(6)
 	var key = game.network.selected_art
 	for hit in range(5):
 		var direction = Vector3(60, 1.4, 96) - game.player.view.camera.global_position
@@ -263,7 +268,7 @@ func client_test() -> void:
 	await frames(5)
 	check(game.kill_count == 1, "Client kill counter matches authoritative score")
 	check(game.network.received_snapshots > 10, "World snapshots update continuously")
-	write_state("client", "shot_done", {"art": key})
+	write_state("client", "shot_done", {"art": key, "custom_art": custom_key})
 	stage = await wait_stage("host", "host_shot_prepare")
 	var host_target_id = int(stage.get("bot", -1))
 	for frame in range(120):

@@ -175,8 +175,8 @@ func run(game) -> void:
 		game.game_modes.modifiers.apply(upgrade)
 	var profile = game.game_modes.projectile_profile()
 	var target_at = game.player.global_position + Vector3(0, 0, 2.0)
-	var primary = game._spawn_bot(target_at, {"max_health": 500.0, "respawn_delay": 9999.0})
-	var splash = game._spawn_bot(target_at + Vector3(1.0, 0, 0), {"max_health": 500.0, "respawn_delay": 9999.0})
+	var primary = game._spawn_bot(target_at, {"max_health": 500.0, "respawn_delay": 9999.0, "custom_face": game.face_texture})
+	var splash = game._spawn_bot(target_at + Vector3(1.0, 0, 0), {"max_health": 500.0, "respawn_delay": 9999.0, "custom_face": game.face_texture})
 	primary.enabled = false
 	splash.enabled = false
 	await game.get_tree().physics_frame

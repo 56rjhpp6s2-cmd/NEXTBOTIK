@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <g transform="rotate(-10 256 256)">
+    <rect x="105" y="62" width="302" height="388" rx="16" fill="#9f202b" stroke="#f4d06f" stroke-width="14"/>
+    <path d="M139 68v376" stroke="#72141d" stroke-width="13"/>
+    <circle cx="269" cy="181" r="53" fill="none" stroke="#f4d06f" stroke-width="10"/>
+    <path d="m269 139 12 27 29 3-22 20 6 29-25-15-25 15 6-29-22-20 29-3z" fill="#f4d06f"/>
+    <text x="274" y="290" text-anchor="middle" font-family="sans-serif" font-size="27" font-weight="700" fill="#ffe59a">КОНСТИТУЦИЯ</text>
+    <text x="274" y="329" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#ffe59a">РОССИЙСКОЙ</text>
+    <text x="274" y="365" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#ffe59a">ФЕДЕРАЦИИ</text>
+  </g>
+</svg>

@@ -1,10 +1,11 @@
 extends Node
 ## ENet listen-server cooperative session. Gameplay authority stays on peer 1.
 signal status_changed(message: String)
-const PROTOCOL: int = 6
+const PROTOCOL: int = 7
 const MAX_PLAYERS: int = 8
 const RemoteActor = preload("res://scripts/network/remote_player.gd")
 const NetworkImages = preload("res://scripts/network/network_images.gd")
+const ThrowableItems = preload("res://scripts/combat/throwable_item_registry.gd")
 var session
 var active: bool = false
 var connected: bool = false
@@ -558,25 +559,27 @@ func _art(key: String, bytes: PackedByteArray) -> void:
 					projectile.visual.texture = projectile.texture
 					projectile.visual.pixel_size = projectile.image_size / maxi(projectile.texture.get_width(), projectile.texture.get_height())
 
-func throw_local(texture: Texture2D, origin: Vector3, direction: Vector3, charge_power: float = 1.0) -> Node3D:
+func throw_local(texture: Texture2D, origin: Vector3, direction: Vector3, charge_power: float = 1.0, item_kind: String = ThrowableItems.STANDARD) -> Node3D:
 	var key = _prepare_art()
 	if key.is_empty():
 		return null
+	if item_kind not in [ThrowableItems.STANDARD, ThrowableItems.TEST_TUBE, ThrowableItems.LITERATURE_BOOK, ThrowableItems.CONSTITUTION]:
+		item_kind = ThrowableItems.STANDARD
 	sequence += 1
 	if is_host():
-		return _server_fire(1, sequence, key, origin, direction, Settings.projectile_size, charge_power)
-	var projectile = session.projectiles.launch(texture, origin, direction, session.player, true, session.game_modes.projectile_profile(), charge_power)
+		return _server_fire(1, sequence, key, origin, direction, Settings.projectile_size, charge_power, item_kind)
+	var projectile = session.projectiles.launch(texture, origin, direction, session.player, true, session.game_modes.projectile_profile(), charge_power, item_kind)
 	projectile.set_meta("net_seq", sequence)
 	predicted[sequence] = projectile
-	_fire.rpc_id(1, epoch, sequence, key, origin, direction, Settings.projectile_size, charge_power)
+	_fire.rpc_id(1, epoch, sequence, key, origin, direction, Settings.projectile_size, charge_power, item_kind)
 	return projectile
 
 @rpc("any_peer", "call_remote", "reliable", 0)
-func _fire(round_id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float, charge_power: float) -> void:
+func _fire(round_id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float, charge_power: float, item_kind: String) -> void:
 	if is_host() and round_id == epoch:
-		_server_fire(multiplayer.get_remote_sender_id(), seq, key, origin, direction, size, charge_power)
+		_server_fire(multiplayer.get_remote_sender_id(), seq, key, origin, direction, size, charge_power, item_kind)
 
-func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float, charge_power: float = 1.0) -> Node3D:
+func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Vector3, size: float, charge_power: float = 1.0, item_kind: String = ThrowableItems.STANDARD) -> Node3D:
 	if not game_running or not peers.has(id):
 		return null
 	var state = peers[id]
@@ -584,7 +587,7 @@ func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Ve
 	var profile: Dictionary = session.game_modes.projectile_profile()
 	var cooldown_ready: bool = now >= float(state.next_fire) - 0.045
 	var burst_ready: bool = int(state.get("burst_remaining", 0)) > 0 and now - float(state.get("burst_time", 0.0)) <= 0.15
-	if not state.ready or not state.alive or state.hidden or seq <= state.last_seq or (not cooldown_ready and not burst_ready) or not images.textures.has(key) or not direction.is_finite() or direction.length() < 0.5 or not origin.is_finite() or not is_finite(size) or not is_finite(charge_power):
+	if not state.ready or not state.alive or state.hidden or seq <= state.last_seq or (not cooldown_ready and not burst_ready) or not images.textures.has(key) or item_kind not in [ThrowableItems.STANDARD, ThrowableItems.TEST_TUBE, ThrowableItems.LITERATURE_BOOK, ThrowableItems.CONSTITUTION] or not direction.is_finite() or direction.length() < 0.5 or not origin.is_finite() or not is_finite(size) or not is_finite(charge_power):
 		if id != 1:
 			_reject_shot.rpc_id(id, seq)
 		return null
@@ -614,7 +617,7 @@ func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Ve
 	var actor = actor_for(id)
 	if not is_instance_valid(actor):
 		return null
-	var projectile = session.projectiles.launch(images.textures[key], origin, direction, actor, false, profile, clampf(charge_power, 0.2, 1.0))
+	var projectile = session.projectiles.launch(images.textures[key], origin, direction, actor, false, profile, clampf(charge_power, 0.2, 1.0), item_kind)
 	projectile.image_size = clampf(size, 0.2, 2.5) * float(profile.get("size_multiplier", 1.0))
 	projectile.collision_radius = clampf(projectile.image_size * 0.12 * float(profile.get("hitbox_multiplier", 1.0)), 0.06, 0.38)
 	projectile.shape.radius = projectile.collision_radius
@@ -633,7 +636,7 @@ func _server_fire(id: int, seq: int, key: String, origin: Vector3, direction: Ve
 	return projectile
 
 func _shot_data(projectile) -> Dictionary:
-	return {"id": int(projectile.get_meta("net_id")), "owner": int(projectile.get_meta("net_owner")), "art": str(projectile.get_meta("net_art")), "seq": int(projectile.get_meta("net_seq")), "p": projectile.global_position, "v": projectile.velocity, "size": projectile.image_size, "age": projectile.age}
+	return {"id": int(projectile.get_meta("net_id")), "owner": int(projectile.get_meta("net_owner")), "art": str(projectile.get_meta("net_art")), "seq": int(projectile.get_meta("net_seq")), "p": projectile.global_position, "v": projectile.velocity, "size": projectile.image_size, "age": projectile.age, "item": projectile.item_kind}
 
 @rpc("authority", "call_remote", "reliable", 0)
 func _reject_shot(seq: int) -> void:
@@ -665,7 +668,7 @@ func _spawn_visual_shot(data: Dictionary) -> void:
 			return
 	else:
 		var texture: Texture2D = images.textures.get(str(data.art), session.png_images.current_texture())
-		projectile = session.projectiles.launch(texture, data.p, data.v.normalized(), actor_for(int(data.owner)), true)
+		projectile = session.projectiles.launch(texture, data.p, data.v.normalized(), actor_for(int(data.owner)), true, {}, 1.0, str(data.get("item", ThrowableItems.STANDARD)))
 		projectile.velocity = data.v
 		projectile.age = float(data.age)
 	projectile.image_size = float(data.size)

@@ -4,6 +4,7 @@ extends Node
 signal projectile_launched(projectile: Node3D)
 signal state_changed
 const ProjectileScript = preload("res://scripts/combat/png_projectile.gd")
+const ThrowableItems = preload("res://scripts/combat/throwable_item_registry.gd")
 @export var projectile_damage: float = 20.0
 @export var projectile_speed: float = 35.0
 @export var throw_cooldown: float = 0.3
@@ -123,6 +124,7 @@ func fire(charge_power: float = 1.0) -> Node3D:
 		ammo -= 1
 	var projectile: Node3D
 	var count = maxi(1, int(profile.get("count", 1)))
+	var item_kind: String = images.current_item_kind()
 	for index in range(count):
 		shot_serial += 1
 		var shot_profile := profile.duplicate()
@@ -135,9 +137,9 @@ func fire(charge_power: float = 1.0) -> Node3D:
 		var center = (float(count) - 1.0) * 0.5
 		var direction = (-player.view.camera.global_basis.z + player.view.camera.global_basis.x * (float(index) - center) * float(profile.get("spread", 0.035))).normalized()
 		if is_instance_valid(session.network) and session.network.active:
-			projectile = session.network.throw_local(texture, player.view.camera.global_position, direction, charge_power)
+			projectile = session.network.throw_local(texture, player.view.camera.global_position, direction, charge_power, item_kind)
 		else:
-			projectile = launch(texture, player.view.camera.global_position, direction, null, false, shot_profile, charge_power)
+			projectile = launch(texture, player.view.camera.global_position, direction, null, false, shot_profile, charge_power, item_kind)
 		if is_instance_valid(session.statistics):
 			session.statistics.add("total_png_projectiles_thrown")
 	_play_throw()
@@ -148,7 +150,7 @@ func fire(charge_power: float = 1.0) -> Node3D:
 	state_changed.emit()
 	return projectile
 
-func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor: Node3D = null, visual_only: bool = false, profile: Dictionary = {}, charge_power: float = 1.0) -> Node3D:
+func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor: Node3D = null, visual_only: bool = false, profile: Dictionary = {}, charge_power: float = 1.0, item_kind: String = ThrowableItems.STANDARD) -> Node3D:
 	var projectile = ProjectileScript.new()
 	projectile.shooter = owner_actor if owner_actor != null else player
 	projectile.visual_only = visual_only
@@ -156,6 +158,7 @@ func launch(texture: Texture2D, origin: Vector3, direction: Vector3, owner_actor
 	projectile.damage_system = damage_system
 	projectile.run_id = run_id
 	projectile.texture = texture
+	projectile.item_kind = item_kind
 	projectile.damage = projectile_damage * float(profile.get("damage_multiplier", 1.0)) * float(profile.get("trigger_damage_multiplier", 1.0))
 	if str(profile.get("weapon", "png_thrower")) == "charged_launcher":
 		projectile.damage *= lerpf(0.7, 3.0, clampf(charge_power, 0.2, 1.0))
