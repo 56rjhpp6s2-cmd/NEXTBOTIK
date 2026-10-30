@@ -337,7 +337,17 @@ func apply_run_reward(reward: String) -> bool:
 	if not modifiers.apply(reward):
 		return false
 	_apply_player_tuning()
+	if is_instance_valid(session.projectiles):
+		session.projectiles.require_release = true
+		session.projectiles.state_changed.emit()
 	return true
+
+func reapply_run_rewards() -> void:
+	# The Player node persists between maps, but this makes level loading and
+	# future controller resets unable to silently discard movement rewards.
+	_apply_player_tuning()
+	if is_instance_valid(session.projectiles):
+		session.projectiles.state_changed.emit()
 
 func restore_run_rewards(data: Dictionary) -> void:
 	modifiers.restore(data)

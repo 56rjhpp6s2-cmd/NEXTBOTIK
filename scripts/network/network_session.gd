@@ -908,8 +908,8 @@ func _server_reward_vote(id: int, choice: int) -> void:
 		return
 	if session.post_boss.state != PostBossRewardController.RewardState.REWARD_SELECTION:
 		return
-	if state.p.distance_to(session.post_boss.npc_position) > 8.0:
-		return
+	# Reward voting is a phase-wide Q/E choice. It deliberately does not use
+	# world distance or ray targeting, so every living eligible player can vote.
 	session.post_boss.register_vote(id, choice)
 
 func broadcast_reward_votes(reward_phase: int, current_votes: Dictionary, time_left: float) -> void:

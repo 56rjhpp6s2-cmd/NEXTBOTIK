@@ -264,7 +264,7 @@ func client_test() -> void:
 			break
 		await game.get_tree().physics_frame
 	check(game.post_boss.phase_id == int(stage.phase) and game.post_boss.choices == [str(stage.left), str(stage.right)], "Guest sees the same NPC hand rewards and phase ID")
-	game.network.request_reward_vote(1)
+	game.post_boss.select_choice(1)
 	write_state("client", "voted")
 	stage = await wait_stage("host", "finalized")
 	for frame in range(180):

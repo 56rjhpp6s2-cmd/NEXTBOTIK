@@ -650,15 +650,21 @@ func show_upgrades(upgrades: Array[String], definitions: Dictionary) -> void:
 func show_reward_phase(rewards: Array[String], multiplayer_vote: bool, time_left: float) -> void:
 	reward_ids = rewards.duplicate()
 	reward_panel.visible = rewards.size() == 2
-	reward_title.text = "POST-BOSS VOTE  /  CHOOSE ONE" if multiplayer_vote else "POST-BOSS REWARD  /  CHOOSE ONE"
+	reward_title.text = "POST-BOSS VOTE  /  [Q] LEFT  OR  [E] RIGHT" if multiplayer_vote else "POST-BOSS REWARD  /  [Q] LEFT  OR  [E] RIGHT"
 	for index in range(mini(2, rewards.size())):
-		var definition: Dictionary = GameplayModifierSet.DEFINITIONS[rewards[index]]
-		var rarity := str(definition.rarity).to_upper()
-		var current_stack: int = get_parent().game_modes.modifiers.stack_count(rewards[index])
-		var maximum_stack := int(definition.get("max_stacks", 1))
-		reward_texts[index].text = "%s HAND\n%s\n%s  /  %s\n\n%s\n%s\nCURRENT STACK  %d / %d" % ["LEFT" if index == 0 else "RIGHT", definition.title, rarity, definition.category, definition.description, definition.stats, current_stack, maximum_stack]
+		_update_reward_card_text(index, rewards[index])
 		_set_reward_card_style(index, GameplayModifierSet.rarity_color(rewards[index]), false)
 	update_reward_votes({}, time_left, 1)
+
+func _update_reward_card_text(index: int, reward: String) -> void:
+	if index < 0 or index >= reward_texts.size() or not GameplayModifierSet.DEFINITIONS.has(reward):
+		return
+	var definition: Dictionary = GameplayModifierSet.DEFINITIONS[reward]
+	var rarity := str(definition.rarity).to_upper()
+	var current_stack: int = get_parent().game_modes.modifiers.stack_count(reward)
+	var maximum_stack := int(definition.get("max_stacks", 1))
+	var hotkey := "Q" if index == 0 else "E"
+	reward_texts[index].text = "[%s]  %s HAND\n%s\n%s  /  %s\n\n%s\n%s\nCURRENT STACK  %d / %d" % [hotkey, "LEFT" if index == 0 else "RIGHT", definition.title, rarity, definition.category, definition.description, definition.stats, current_stack, maximum_stack]
 
 func _set_reward_card_style(index: int, color: Color, focused: bool) -> void:
 	if index < 0 or index >= reward_cards.size():
@@ -690,17 +696,18 @@ func update_reward_votes(votes: Dictionary, time_left: float, local_id: int) -> 
 		if int(choice) in [0, 1]:
 			counts[int(choice)] += 1
 	if votes.is_empty() and not get_parent().network.active:
-		reward_vote_label.text = "LOOK AT A HAND AND PRESS [E]"
+		reward_vote_label.text = "PRESS [Q] FOR LEFT   /   PRESS [E] FOR RIGHT"
 	else:
 		var mine := int(votes.get(local_id, -1))
 		var vote_text := "LEFT" if mine == 0 else ("RIGHT" if mine == 1 else "NONE")
-		reward_vote_label.text = "LEFT  %d VOTES    /    RIGHT  %d VOTES\n%02d SEC    /    YOUR VOTE: %s" % [counts[0], counts[1], ceili(time_left), vote_text]
+		reward_vote_label.text = "[Q] LEFT  %d VOTES    /    [E] RIGHT  %d VOTES\n%02d SEC    /    YOUR VOTE: %s" % [counts[0], counts[1], ceili(time_left), vote_text]
 
 func finalize_reward(choice: int, reward: String, lever_required: bool = true) -> void:
 	if not reward_panel.visible or choice not in [0, 1]:
 		return
 	var definition: Dictionary = GameplayModifierSet.DEFINITIONS[reward]
 	reward_title.text = "ACQUIRED  /  %s" % definition.title
+	_update_reward_card_text(choice, reward)
 	reward_cards[1 - choice].modulate = Color(1, 1, 1, 0.18)
 	reward_cards[choice].modulate = Color.WHITE
 	reward_vote_label.text = "PROGRESSION UNLOCKED  /  LEVER BEHIND THE KEEPER" if lever_required else "REWARD INSTALLED"

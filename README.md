@@ -43,7 +43,7 @@ Bossfight uses its own original **Dust Quarter** map: a sun-baked competitive-FP
 
 Every fourth level loads the separate **Sun Ring**, a large open circular arena with spaced pillars that provide fair cover from the boss's telegraphed charge. The first boss has **4,000 HP**. Each later boss gains **500 HP**, while ordinary Nextbots gain health, speed and population pressure after every victory.
 
-Defeating a boss now starts a mandatory post-boss reward encounter. The photographed **Reward Keeper** appears once with a different data-driven weapon or upgrade above each raised hand. Look at the left or right item and press **E**. The selected reward persists for the current run; only after it has been applied does a dedicated progression lever appear behind the Keeper. Pulling that lever starts the next three-sector cycle. The normal arena exit stays disabled throughout selection, so the reward cannot be skipped.
+Defeating a boss now starts a mandatory post-boss reward encounter. The photographed **Reward Keeper** appears once with a different data-driven weapon or upgrade above each raised hand. Press **Q for the left reward** or **E for the right reward**; aiming at the item and approaching the NPC are not required. The selected reward is applied immediately and persists for the current run. Only then does a dedicated progression lever appear behind the Keeper. Pulling that lever starts the next three-sector cycle. The normal arena exit stays disabled throughout selection, so the reward cannot be skipped.
 
 The pool includes weighted Common through Legendary projectile, movement, defense and synergy upgrades plus genuinely different PNG Minigun, Meme Howitzer, Spreadshot and charged Chargeposter weapons. Maxed, duplicate and invalid choices are filtered. PNG Mayhem uses the same system after boss waves without creating a progression lever; Sandbox exposes a manual **SPAWN / RESET REWARD KEEPER** test button.
 
@@ -62,7 +62,9 @@ Bossfight is fully cooperative: the host synchronizes the selected mode, level s
 | A / D in the air | Air strafe to carry speed through turns |
 | F4 | Show or hide the speedometer |
 | F2 | Open or close live Sandbox controls while playing Sandbox |
-| E | Interact; restore breakers, choose/vote for hand rewards, pull levers, use lifts and gates |
+| Q during reward selection | Immediately choose/vote for the left-hand reward |
+| E during reward selection | Immediately choose/vote for the right-hand reward |
+| E otherwise | Interact; restore breakers, pull levers, use lifts and gates |
 | F | Toggle flashlight |
 | Left mouse (hold or click) | Throw selected PNG |
 | Right mouse (hold) | Aim |

@@ -47,7 +47,7 @@ func run(game) -> void:
 	images.select_filename("BZ_anomaly.png")
 	var texture: Texture2D = images.current_texture()
 	check(texture != null and texture.get_image().get_pixel(0, 0).a < 0.01, "Actual PNG texture retains transparency")
-	for action in ["throw_png", "aim_png", "reload_png", "next_png", "previous_png", "png_library"]:
+	for action in ["throw_png", "aim_png", "reload_png", "next_png", "previous_png", "png_library", "reward_left", "interact"]:
 		check(InputMap.has_action(action) and not InputMap.action_get_events(action).is_empty(), "Combat input bound: " + action)
 	var old_index: int = images.selected_index
 	var wheel = InputEventMouseButton.new()

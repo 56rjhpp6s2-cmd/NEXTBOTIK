@@ -18,6 +18,8 @@ var ammo_toggle: CheckButton
 var icon: TextureRect
 var image_name: Label
 var ammo_label: Label
+var reward_build_label: Label
+var reward_inventory_label: Label
 var kills_label: Label
 var target_label: Label
 var file_picker: FileDialog
@@ -94,6 +96,9 @@ func _build_hud() -> void:
 	image_name = _label(hud, "", Vector2(130, 650), Vector2(310, 30), 21, ACCENT)
 	image_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	ammo_label = _label(hud, "PNG  ∞", Vector2(130, 685), Vector2(350, 28), 18)
+	reward_build_label = _label(hud, "", Vector2(48, 615), Vector2(560, 28), 16, Color("ffd15c"))
+	reward_inventory_label = _label(hud, "", Vector2(48, 585), Vector2(700, 25), 15, Color("93decc"))
+	reward_inventory_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_button(hud, "Import PNG", Vector2(48, 725), Vector2(160, 40), import_pressed)
 	_button(hud, "PNG LIBRARY [TAB]", Vector2(220, 725), Vector2(230, 40), open_library)
 	_label(hud, "LMB THROW  /  RMB AIM  /  R RELOAD  /  WHEEL SELECT", Vector2(48, 777), Vector2(550, 25), 14, Color("94aaa9"))
@@ -161,8 +166,24 @@ func _checkerboard() -> Texture2D:
 func _process(_delta: float) -> void:
 	hud.visible = session.is_running() and session.ui.hud.visible and not gallery.visible
 	kills_label.text = "KILLS  %d" % session.kill_count
-	var damage = ceili(weapon.projectile_damage)
-	ammo_label.text = "RELOADING PNG…" if weapon.reload_remaining > 0.0 else ("PNG  ∞  /  %d DAMAGE" % damage if weapon.unlimited_ammo else "PNG  %d / %d  /  %d DAMAGE" % [weapon.ammo, weapon.magazine_size, damage])
+	var profile: Dictionary = session.game_modes.projectile_profile()
+	var damage: float = float(weapon.projectile_damage) * float(profile.get("damage_multiplier", 1.0))
+	var projectile_count := maxi(1, int(profile.get("count", 1)))
+	var cooldown: float = float(weapon.throw_cooldown) * float(profile.get("cooldown_multiplier", 1.0))
+	var weapon_id := str(profile.get("weapon", "png_thrower"))
+	var weapon_title := "PNG THROWER"
+	if GameplayModifierSet.DEFINITIONS.has(weapon_id):
+		weapon_title = str(GameplayModifierSet.DEFINITIONS[weapon_id].title)
+	var damage_text := "%d DAMAGE" % ceili(damage) if projectile_count == 1 else "%d x %d DAMAGE" % [projectile_count, ceili(damage)]
+	reward_build_label.text = "%s  /  %s  /  %.2f SEC" % [weapon_title, damage_text, cooldown]
+	var installed: Array[String] = []
+	for reward in session.game_modes.modifiers.stacks:
+		var count: int = session.game_modes.modifiers.stack_count(str(reward))
+		var definition: Dictionary = GameplayModifierSet.DEFINITIONS.get(str(reward), {})
+		var title: String = str(definition.get("title", reward))
+		installed.append("%s%s" % [title, " x%d" % count if count > 1 else ""])
+	reward_inventory_label.text = "RUN REWARDS  /  " + ", ".join(installed) if not installed.is_empty() else "RUN REWARDS  /  NONE"
+	ammo_label.text = "RELOADING PNG…" if weapon.reload_remaining > 0.0 else ("PNG  ∞" if weapon.unlimited_ammo else "PNG  %d / %d" % [weapon.ammo, weapon.magazine_size])
 	target_label.text = ""
 	var target = weapon.aimed_enemy
 	if not is_instance_valid(target) and weapon.hit_time > 0:

@@ -509,6 +509,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			projectiles.require_release = true
 		get_viewport().set_input_as_handled()
 		return
+	if is_local_playing() and post_boss.state == PostBossRewardController.RewardState.REWARD_SELECTION:
+		if event.is_action_pressed("reward_left"):
+			post_boss.select_choice(0)
+			get_viewport().set_input_as_handled()
+			return
+		if event.is_action_pressed("interact"):
+			post_boss.select_choice(1)
+			get_viewport().set_input_as_handled()
+			return
 	if event.is_action_pressed("pause"):
 		if ui.settings_screen.visible:
 			_action("apply_settings")
@@ -1158,6 +1167,7 @@ func complete_level_transition(spawn_enemies: bool = true, animate: bool = true)
 	player.active = true
 	player.network_alive = true
 	post_boss.level_ready()
+	game_modes.reapply_run_rewards()
 	if game_modes.selected == GameModeManager.GameplayMode.BOSSFIGHT:
 		game_modes.bossfight_level_ready()
 	for bot in staged_bots:

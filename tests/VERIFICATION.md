@@ -1,5 +1,11 @@
 # Verification status
 
+## Direct reward hotkeys and applied effects (2026-10-30)
+
+- Reward selection no longer depends on camera aim, ray targeting, proximity or small hand hitboxes: **Q always selects/votes left, E always selects/votes right** while the reward phase is active. The world title, both cards, prompt, vote counts and countdown show the same mapping.
+- Reward application now explicitly refreshes movement tuning and the projectile HUD, and re-applies run modifiers after every level transition. The HUD displays the active reward weapon, effective per-projectile damage, projectile count and effective cooldown instead of the unchanged base 20-damage value.
+- Bossfight passed **54/54** checks, including actual Q/E input dispatch, exactly-once application, the updated stack display, a real 25-damage projectile after transition, persistent HUD state and a real sprint-speed increase. Combat passed **128/128**, modes/events **76/76**, and two-process Bossfight networking **18/18 host + 22/22 client**.
+
 ## Post-boss Reward Keeper (2026-10-29)
 
 - Added the supplied `assets/rewards/reward_keeper.jpg` as an aspect-preserving camera-facing life-sized NPC. The original classroom background is deliberately retained; no transparent cutout is claimed. Configurable left/right palm anchors carry two different rarity-colored reward objects.

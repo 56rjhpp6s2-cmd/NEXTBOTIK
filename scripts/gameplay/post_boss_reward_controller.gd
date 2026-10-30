@@ -53,6 +53,7 @@ func _process(delta: float) -> void:
 	_animate_rewards(delta)
 	if state == RewardState.REWARD_SELECTION and session.network.active:
 		vote_time_left = maxf(0.0, vote_time_left - delta)
+		session.ui.update_reward_votes(votes, vote_time_left, session.network.local_id())
 		if session.is_authority() and vote_time_left <= 0.0:
 			_finalize_authoritative(_majority_choice())
 
@@ -159,7 +160,7 @@ func start_selection(data: Dictionary) -> void:
 	_suppress_normal_exits()
 	_build_presentation()
 	session.ui.show_reward_phase(choices, session.network.active, vote_time_left)
-	session.ui.toast("CHOOSE ONE REWARD\nLEFT HAND  OR  RIGHT HAND", 4.0)
+	session.ui.toast("CHOOSE A REWARD\n[Q] LEFT HAND   /   [E] RIGHT HAND", 5.0)
 
 func update_focus(camera: Camera3D) -> String:
 	focused_choice = -1
@@ -177,23 +178,23 @@ func update_focus(camera: Camera3D) -> String:
 			best = score
 			focused_choice = index
 	_update_highlight()
-	if focused_choice < 0:
-		return "APPROACH THE KEEPER  /  LOOK AT A REWARD"
-	var definition: Dictionary = GameplayModifierSet.DEFINITIONS[choices[focused_choice]]
-	var side := "LEFT" if focused_choice == 0 else "RIGHT"
+	return "[Q] LEFT: %s    /    [E] RIGHT: %s" % [GameplayModifierSet.DEFINITIONS[choices[0]].title, GameplayModifierSet.DEFINITIONS[choices[1]].title]
+
+func select_choice(choice: int) -> bool:
+	if state != RewardState.REWARD_SELECTION or choice not in [0, 1]:
+		return false
+	focused_choice = choice
+	_update_highlight()
 	if session.network.active:
-		var local_vote := int(votes.get(session.network.local_id(), -1))
-		return "[E] VOTE %s  /  %s%s" % [side, definition.title, "  /  YOUR CURRENT VOTE" if local_vote == focused_choice else ""]
-	return "[E] TAKE %s  /  %s" % [side, definition.title]
+		session.network.request_reward_vote(choice)
+	else:
+		_finalize_authoritative(choice)
+	return true
 
 func interact_focused() -> bool:
-	if state != RewardState.REWARD_SELECTION or focused_choice < 0:
+	if focused_choice < 0:
 		return false
-	if session.network.active:
-		session.network.request_reward_vote(focused_choice)
-	else:
-		_finalize_authoritative(focused_choice)
-	return true
+	return select_choice(focused_choice)
 
 func register_vote(peer_id: int, choice: int) -> void:
 	if state != RewardState.REWARD_SELECTION or choice not in [0, 1]:
@@ -257,7 +258,7 @@ func finalize_selection(incoming_phase: int, choice: int, reward: String) -> voi
 	Sound.one_shot("battery", -6.0, 1.3)
 	var definition: Dictionary = GameplayModifierSet.DEFINITIONS[reward]
 	session.ui.finalize_reward(choice, reward, requires_lever)
-	session.ui.toast("REWARD ACQUIRED\n%s" % definition.title, 3.0)
+	session.ui.toast("REWARD APPLIED\n%s\n%s" % [definition.title, definition.stats], 4.0)
 	if requires_lever:
 		_spawn_progression_lever()
 		state = RewardState.PROGRESSION_UNLOCKED
@@ -304,7 +305,7 @@ func _build_presentation() -> void:
 	npc_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	presentation.add_child(npc_sprite)
 	var title := Label3D.new()
-	title.text = "THE REWARD KEEPER\nCHOOSE ONE"
+	title.text = "THE REWARD KEEPER\n[Q] LEFT   /   [E] RIGHT"
 	title.position = Vector3(0, 3.06, 0)
 	title.font_size = 34
 	title.pixel_size = 0.007

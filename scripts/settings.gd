@@ -68,6 +68,7 @@ func _ready() -> void:
 	_bind("crouch", KEY_CTRL)
 	_bind("jump", KEY_SPACE)
 	_bind("speedometer", KEY_F4)
+	_bind("reward_left", KEY_Q)
 	_bind("interact", KEY_E)
 	_bind("flashlight", KEY_F)
 	_bind("pause", KEY_ESCAPE)
