@@ -180,7 +180,7 @@ func _build_menu() -> void:
 	map_choice.item_selected.connect(_on_map_selected)
 	buttons.add_child(map_choice)
 	_button(buttons, "PLAY / ИГРАТЬ     →", "play")
-	_button(buttons, "СЕТЬ / RADMIN VPN", "network")
+	_button(buttons, "ONLINE / WI-FI / LAN" if OS.has_feature("mobile") else "СЕТЬ / LAN / RADMIN VPN", "network")
 	_button(buttons, "SETTINGS", "settings")
 	_button(buttons, "QUIT", "quit")
 	buttons.add_theme_constant_override("separation", 8)
@@ -198,7 +198,7 @@ func _build_menu() -> void:
 	var info = _vbox(menu, Vector2(1080, 500), 420, 14)
 	_label(info, "YOUR ASSIGNMENT", 18, ACCENT)
 	mission_label = _label(info, "", 24)
-	_label(info, "WASD  MOVE    SHIFT  SPRINT\nCTRL  SLIDE / CROUCH    SPACE  JUMP\nF  FLASHLIGHT    E  INTERACT\nF4  SPEEDOMETER    ESC  PAUSE", 17, MUTED)
+	_label(info, "TOUCH CONTROLS ACTIVE\nLEFT STICK MOVE    SWIPE LOOK\nFIRE / AIM / JUMP / SLIDE / USE" if OS.has_feature("mobile") else "WASD  MOVE    SHIFT  SPRINT\nCTRL  SLIDE / CROUCH    SPACE  JUMP\nF  FLASHLIGHT    E  INTERACT\nF4  SPEEDOMETER    ESC  PAUSE", 17, MUTED)
 	_at(_label(menu, "B2 / SUBSURFACE OPERATIONS", 17, MUTED), Vector2(92, 837))
 	_at(_label(menu, "HEADPHONES RECOMMENDED  •  SUDDEN SOUNDS & FLASHING LIGHTS", 15, MUTED), Vector2(870, 841))
 

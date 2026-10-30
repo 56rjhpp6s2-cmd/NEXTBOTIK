@@ -88,7 +88,7 @@ func automated_run() -> bool:
 	return not automated_tag().is_empty()
 
 func automated_tag() -> String:
-	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--modes-test", "--bossfight-test", "--capture-construct", "--capture-combat", "--capture-bossfight", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
+	for flag in ["--smoke-test", "--map-test", "--combat-test", "--movement-test", "--procedural-test", "--modes-test", "--bossfight-test", "--mobile-test", "--capture-construct", "--capture-combat", "--capture-bossfight", "--net-test-host", "--net-test-client", "--capture-network", "--portable-test"]:
 		if flag in OS.get_cmdline_user_args():
 			return flag.trim_prefix("--")
 	return ""
@@ -108,6 +108,9 @@ func _bind(action: String, key: Key) -> void:
 		InputMap.action_add_event(action, event)
 
 func apply_display() -> void:
+	if OS.has_feature("mobile"):
+		changed.emit()
+		return
 	if DisplayServer.get_name() != "headless" and "--capture-construct" not in OS.get_cmdline_user_args() and "--capture-combat" not in OS.get_cmdline_user_args() and "--capture-network" not in OS.get_cmdline_user_args() and "--capture-network-client" not in OS.get_cmdline_user_args():
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
 		if not fullscreen:

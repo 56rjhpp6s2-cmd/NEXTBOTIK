@@ -1,14 +1,16 @@
 # BELOW / ZERO
 
-A first-person Nextbots horror-action game for Windows, built in Godot 4.5+ with GDScript. Choose **Arcade**, **Endless**, **PNG Mayhem**, **Sandbox** or **Bossfight**, then enter an abandoned underground complex, a gm_construct-style outdoor arena, or Bossfight's dedicated desert district. Endless retains the objective-driven descent and generates a new modular labyrinth from Level 4 onward. Sandbox includes manual spawning plus configurable automatic spawning, batch size, interval and active-enemy limit.
+A first-person Nextbots horror-action game for Windows and Android, built in Godot 4.5+ with GDScript. Choose **Arcade**, **Endless**, **PNG Mayhem**, **Sandbox** or **Bossfight**, then enter an abandoned underground complex, a gm_construct-style outdoor arena, or Bossfight's dedicated desert district. Endless retains the objective-driven descent and generates a new modular labyrinth from Level 4 onward. Sandbox includes manual spawning plus configurable automatic spawning, batch size, interval and active-enemy limit.
 
 You can fight back by throwing PNG images. Import your own transparent PNGs during a run, switch images with the mouse wheel, aim, and defeat enemies with five standard hits. Both maps retain their movement, chases, objectives, jumpscare and respawn systems.
 
-Cooperative multiplayer supports up to eight players over LAN or Radmin VPN in **Endless and Bossfight**. Select the mode first, then choose **СЕТЬ / RADMIN VPN**: one player hosts and friends join using the host's VPN IP and the same UDP port (default **24577**). See [MULTIPLAYER.md](MULTIPLAYER.md) for Russian setup instructions, shared objectives, individual respawns and network testing.
+Cooperative multiplayer supports up to eight players in **Endless and Bossfight**. Windows supports LAN, direct IP and Radmin VPN; Android adds automatic host discovery on the same Wi-Fi/LAN and direct-IP joining. The default UDP port is **24577**. See [MULTIPLAYER.md](MULTIPLAYER.md) for the synchronized game rules and [ANDROID.md](ANDROID.md) for installation, touch controls and mobile networking.
 
 ## Play
 
 Open `project.godot` in your installed Godot 4.5 or newer and press **F5**. Stop an already running game with **F8** before restarting to load new scripts. The renderer is OpenGL Compatibility for broad Windows hardware support. No Python packages are needed to play.
+
+The Android test build is **`build/BELOW_ZERO_Android.apk`**. Install it manually on a 64-bit Android device and play in landscape mode. `BUILD_ANDROID.cmd` rebuilds and verifies the APK on the configured development machine; detailed instructions and online limitations are in [ANDROID.md](ANDROID.md).
 
 `PLAY.cmd` and `EDITOR.cmd` use the portable Godot executable in `tools/engine` or an installation on PATH. The launcher imports resources before starting and never downloads anything. An optional `GODOT_ENGINE` environment variable can select another installed executable.
 

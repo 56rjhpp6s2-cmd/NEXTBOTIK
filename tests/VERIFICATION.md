@@ -129,3 +129,11 @@ Navigation now uses matching mesh/map cell settings, waits for asynchronous sync
 Automated suites use separate `.godot/test_<suite>_settings.cfg` and `.godot/test_projectiles_<suite>` directories. They do not modify normal user PNG files, settings or records. The test only deletes imported copies that it created in its isolated directory.
 
 Remaining limitations: no sustained frame-rate benchmark or listening test. The native file dialog's configuration and file-selection callback were automated; the OS picker was not manually operated. The sandbox reports a root-certificate-store access error at startup and sometimes an ObjectDB cleanup warning on exit; all gameplay suites exit successfully with no GDScript errors. The earlier launcher download fallback issue is outside this combat change; use the installed Godot editor and F5.
+
+## Android build and mobile online verification (2026-10-30)
+
+- Godot 4.5.1 exported `build/BELOW_ZERO_Android.apk` successfully through the reproducible `tools/Build-Android.ps1` entry point. The resulting debug APK is 32,896,921 bytes, package `com.nextbotik.belowzero`, version `1.1.0` / code `2`, target SDK 35 and ARM64-only.
+- Android SDK `aapt2` confirmed the launcher activity and the network/Wi-Fi/vibration permissions. `apksigner verify --verbose` confirmed APK Signature Scheme v2 and v3 with one RSA-2048 debug signer.
+- The mobile integration suite passed **12/12** checks: touch HUD creation, analog joystick input/release, touch look, projectile press/release, direct left/right post-boss reward selection, ENet hosting and automatic UDP Wi-Fi/LAN discovery response.
+- The static suite passed **17/17** checks. The two-process Endless ENet regression passed **26/26 host** and **42/42 client** checks; Bossfight passed **18/18 host** and **22/22 client** checks after the mobile discovery/menu changes.
+- No Android device or emulator was connected (`adb devices` returned no devices), so physical-device installation, rendered touch ergonomics, Android system file picker behavior and device performance remain manual checks. The test APK is debug-signed and is not a Google Play release artifact.

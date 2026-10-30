@@ -41,6 +41,12 @@ func look(event: InputEventMouseMotion, body: Node3D) -> void:
 	pitch = clampf(pitch - event.relative.y * amount, -1.48, 1.48)
 	rotation.x = pitch
 
+func look_touch(relative: Vector2, body: Node3D) -> void:
+	var amount = Settings.sensitivity * sensitivity_multiplier * PI / 180.0 * 1.15
+	body.rotate_y(-relative.x * amount)
+	pitch = clampf(pitch - relative.y * amount, -1.48, 1.48)
+	rotation.x = pitch
+
 func tick(delta: float, speed: float, grounded: bool, sprinting: bool, crouching: bool, active: bool, sliding: bool = false, strafe: float = 0.0) -> void:
 	var target_height = 0.70 if sliding else (0.92 if crouching else 1.62)
 	position.y = lerpf(position.y, target_height, 1.0 - exp(-delta * (17.0 if sliding else 13.0)))

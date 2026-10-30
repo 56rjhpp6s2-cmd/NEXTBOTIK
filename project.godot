@@ -27,6 +27,7 @@ window/size/viewport_height=900
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
+window/handheld/orientation=0
 
 [physics]
 
@@ -36,6 +37,7 @@ window/stretch/mode="canvas_items"
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
 lights_and_shadows/directional_shadow/size=2048
 environment/defaults/default_clear_color=Color(0.012, 0.018, 0.022, 1)
 lights_and_shadows/positional_shadow/atlas_size=2048

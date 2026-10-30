@@ -1,5 +1,7 @@
 .godot/
 tools/engine/
+tools/android-build/
+tools/android-cache/
 build/
 *.tmp
 *.log

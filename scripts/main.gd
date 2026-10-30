@@ -5,6 +5,7 @@ const EXTRA_FACE_PATHS := [
 	"res://assets/nextbot_faces/elena_finkelshteyn.jpg",
 	"res://assets/nextbot_faces/5402324111498878359.jpg",
 ]
+const MobileControlsScript = preload("res://scripts/mobile_controls.gd")
 var mode: Mode = Mode.MENU
 var world: LevelWorld
 var player: PlayerController
@@ -54,6 +55,7 @@ var statistics: StatisticsManager
 var game_modes: GameModeManager
 var events: RandomEventManager
 var post_boss: PostBossRewardController
+var mobile_controls
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -85,6 +87,7 @@ func _ready() -> void:
 	_setup_combat()
 	_setup_network()
 	_setup_gameplay()
+	_setup_mobile_controls()
 	Sound.set_enabled(true)
 	if "--net-test-host" in OS.get_cmdline_user_args() or "--net-test-client" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/network_test.gd").new()
@@ -97,6 +100,9 @@ func _ready() -> void:
 		test_runner.run.call_deferred(self)
 	elif "--bossfight-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/bossfight_test.gd").new()
+		test_runner.run.call_deferred(self)
+	elif "--mobile-test" in OS.get_cmdline_user_args():
+		test_runner = load("res://tests/mobile_test.gd").new()
 		test_runner.run.call_deferred(self)
 	elif "--movement-test" in OS.get_cmdline_user_args():
 		test_runner = load("res://tests/movement_test.gd").new()
@@ -129,6 +135,14 @@ func _ready() -> void:
 	if "--capture-network" in OS.get_cmdline_user_args():
 		network_menu.open()
 		_capture_network.call_deferred()
+
+func _setup_mobile_controls() -> void:
+	if not MobileControlsScript.enabled_for_platform():
+		return
+	mobile_controls = MobileControlsScript.new()
+	mobile_controls.name = "MobileControls"
+	mobile_controls.session = self
+	add_child(mobile_controls)
 
 func _setup_gameplay() -> void:
 	statistics = StatisticsManager.new()

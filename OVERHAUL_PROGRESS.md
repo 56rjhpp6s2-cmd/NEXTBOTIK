@@ -41,6 +41,9 @@ This file is the durable implementation checklist for the master overhaul. Check
 - [x] Protocol-6 authoritative two-choice multiplayer vote with changeable ballots, tie/no-vote handling, late-join snapshots and exactly-once group reward application.
 - [x] Collision-validated progression lever behind the NPC, hidden until rewards finalize and latched against duplicate transitions; lever-free Mayhem/Sandbox cleanup paths.
 - [x] Static and Godot engine tests for the new architecture.
+- [x] Android ARM64 export profile, signed APK, landscape touch controls and mobile-safe display settings.
+- [x] Android/Wi-Fi online flow with automatic LAN host discovery, direct-IP fallback and authoritative cross-platform ENet gameplay.
+- [x] Android manifest/signature validation plus a 12-check mobile input and LAN-discovery integration test.
 
 ## Remaining master-task work after this milestone
 

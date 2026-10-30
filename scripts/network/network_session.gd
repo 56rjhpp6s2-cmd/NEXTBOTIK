@@ -78,14 +78,14 @@ func host(listen_port: int = 24577, player_name: String = "PLAYER") -> Error:
 	session.projectiles.unlimited_ammo = true
 	session.network_menu.panel.visible = false
 	_prepare_art()
-	status_changed.emit("Сервер создан. Подключайтесь по IP хоста из Radmin VPN, UDP %d." % port)
+	status_changed.emit("Сервер создан. На телефоне используйте поиск Wi-Fi/LAN; по интернету — IP хоста, UDP %d." % port)
 	return OK
 
 func join(address: String, listen_port: int = 24577, player_name: String = "PLAYER") -> Error:
 	if active:
 		return ERR_ALREADY_IN_USE
 	if not address.is_valid_ip_address():
-		status_changed.emit("Введите IP хоста из Radmin VPN, без кавычек и номера порта.")
+		status_changed.emit("Введите LAN, публичный или VPN IP хоста без номера порта.")
 		return ERR_INVALID_PARAMETER
 	var peer = ENetMultiplayerPeer.new()
 	var error = peer.create_client(address, listen_port, 3)
@@ -181,7 +181,7 @@ func _connected() -> void:
 
 func _connection_failed() -> void:
 	if active:
-		disconnect_session("Хост не отвечает. Проверьте IP, порт, Radmin VPN и разрешение игры в брандмауэре.")
+		disconnect_session("Хост не отвечает. Проверьте IP, UDP-порт, одну Wi-Fi/VPN сеть и брандмауэр.")
 
 func _server_disconnected() -> void:
 	if active:
